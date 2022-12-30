@@ -1,3 +1,6 @@
 [submodule "external/raylib"]
 	path = external/raylib
 	url = https://github.com/raysan5/raylib.git
+[submodule "external/jetpac-disassembly"]
+	path = external/jetpac-disassembly
+	url = https://github.com/mrcook/jetpac-disassembly.git
