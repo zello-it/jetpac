@@ -1,0 +1,66 @@
+cmake_minimum_required(VERSION 3.10)
+set(PROJ jetpac)
+project(${PROJ})
+
+set(CMAKE_OSX_ARCHITECTURES "arm64")
+#set(CMAKE_OSX_ARCHITECTURES "x86_64")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED True)
+#set(CMAKE_C_FLAGS_DEBUG -g)
+
+set(
+    SOURCE_DIR
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+set(
+    EXTERNAL_DIR
+    ${CMAKE_SOURCE_DIR}/external
+)
+
+# Options for raylib
+set(
+    RAYLIB_DIR
+    ${EXTERNAL_DIR}/raylib
+)
+set(PLATFORM "Desktop" CACHE STRING "")
+#set(OPENGL_VERSION "3.3" CACHE STRING "")
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(USE_WAYLAND OFF CACHE BOOL "Use Wayland" FORCE)
+set(CUSTOMIZE_BUILD ON CACHE BOOL "" FORCE)
+set(SUPPORT_FILEFORMAT_BMP ON CACHE BOOL "Support BMP" FORCE)
+SET(SUPPORT_FILEFORMAT_JPG ON CACHE BOOL "Support JPG" FORCE)
+SET(SUPPORT_FILEFORMAT_FLAC ON CACHE BOOL "Support FLAC" FORCE)
+set(SUPPORT_MODULE_RAUDIO ON CACHE BOOL "" FORCE)
+SET(OpenGL_GL_PREFERENCE GLVND)
+SET(USE_EXTERNAL_GLFW OFF CACHE STRING "If possible, use external GLFW" FORCE)
+add_subdirectory(${RAYLIB_DIR})
+SET(RAYLIB_INCLUDE_DIR ${RAYLIB_DIR}/src)
+
+
+include_directories(
+    ${INCLUDE_DIR}
+    ${RAYLIB_INCLUDE_DIR}
+)
+
+file(
+    GLOB_RECURSE
+    SOURCES
+    ${SOURCE_DIR}/*.c
+    #${SOURCE_DIR}/*.cpp
+)
+
+file(
+    GLOB
+    HEADERS
+    ${SOURCE_DIR}/*.h
+)
+
+add_executable(${PROJ} ${SOURCES} ${HEADERS})
+
+target_link_libraries(
+     ${PROJ}
+     raylib
+)
