@@ -1,0 +1,37 @@
+#include "data.h"
+
+// all global/static variables are initialized to 0 (c std) 
+byte hiScore[3];
+GameOptions gameOptions;
+byte p1Score;
+byte p2Score;
+ActorState jetmanState;
+LaserBeam laserBeamParam[4];
+Sound explosionSfxParams;
+ModuleState rocketModuleState;
+ModuleState itemState;
+AnimState jetmanThrusterAnimState;
+ActorState alienState[6];
+AnimState jetmanExplodingAnimState;
+ActorState inactiveJetmanState;
+ActorState inactiveRocketState[3];
+ActorTempState actor;
+byte alienNewDirFlag;
+byte jetmanSpeedModifier;
+byte currentAlienNumber;
+word gameTime;
+Coords actorCoords;
+PlayerNum currentPlayerNumber;
+byte jetmanRocketModConnected;
+byte rocketModAttached;
+byte lastFrame;
+byte frameTicked;
+byte currentColorAttribute;
+PlayerDelay playerDelayCounter;
+byte playerLevel;
+byte playerLives;
+byte inactivePlayerLevel;
+byte inactivePlayerLives;
+Buffer bufferAliensRight[2];
+Buffer bufferAliensLeft[2];
+Buffer bufferItem[4];
