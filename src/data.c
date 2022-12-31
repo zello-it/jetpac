@@ -1,10 +1,10 @@
 #include "data.h"
 
 // all global/static variables are initialized to 0 (c std) 
-byte hiScore[3];
+uint32_t hiScore;
 GameOptions gameOptions;
-byte p1Score[3];
-byte p2Score[3];
+uint32_t p1Score;
+uint32_t p2Score;
 ActorState jetmanState;
 LaserBeam laserBeamParam[4];
 SoundData explosionSfxParams;

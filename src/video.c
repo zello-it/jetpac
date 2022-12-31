@@ -7,11 +7,13 @@
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
+#include <stdbool.h>
 
-RenderTexture2D renderTexture;
-pthread_t thread;
+Image bufferImage;
+pthread_t thread = 0;
 pthread_mutex_t termination_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t video_mutex = PTHREAD_MUTEX_INITIALIZER;
+bool dirty = false;
 
 // charset
 
@@ -144,7 +146,7 @@ Color zxcolors[2][8] = {
 
 int getMillis() {
     clock_t t = clock();
-    return t / CLOCKS_PER_SEC * 1000;
+    return (t * 1000) / CLOCKS_PER_SEC;
 }
 
 void swapColors(Color* one, Color* two){
@@ -157,7 +159,7 @@ void drawByte(byte col, byte row, Color ink, Color paper) {
     byte line = video[row][col];
 	//printf("print %d - %d\n", row, col);
     for(byte b = 0; b < 8; ++b) {
-        DrawPixel(col * 8 + b, row, (line & 0x80 ? ink : paper) );
+        ImageDrawPixel(&bufferImage, col * 8 + b, row, (line & 0x80 ? ink : paper) );
         line <<= 1;
     }
 }
@@ -171,14 +173,13 @@ Colors getAttrib(byte col, byte row) {
     Colors ret;
     ret.ink = zxcolors[curr.bright][curr.ink];
     ret.paper = zxcolors[curr.bright][curr.paper];
-    if(curr.flash && (getMillis() & 1)) {
+    if(curr.flash && ((getMillis()/500) & 1)) {
         swapColors(&ret.ink, &ret.paper);
     }
     return ret;
 }
 
 void copyBuffer() {
-    pthread_mutex_lock(&video_mutex);
     for(byte lines = 0; lines < 24; ++lines) {
         for(byte cols = 0; cols < 32; ++cols) {
             Colors colors = getAttrib(cols, lines);
@@ -187,24 +188,27 @@ void copyBuffer() {
             }
         }
     }
-    pthread_mutex_unlock(&video_mutex);
+    
 }
-
 
 void initScreen(void) {
-    InitWindow(256 * 4, 192 * 4, "jetpac");
-    renderTexture = LoadRenderTexture(256, 192);
+    InitWindow(800, 600, "jetpac");
+    bufferImage = GenImageColor(256, 192, BLACK);
 }
 void renderLoop(void){
+	Texture2D tex = LoadTextureFromImage(bufferImage);
     while(!WindowShouldClose()) {
-		BeginTextureMode(renderTexture);
-            copyBuffer();
-        EndTextureMode();
-
+		pthread_mutex_lock(&video_mutex);
+		if(dirty) {
+			copyBuffer();
+			UpdateTexture(tex, bufferImage.data);
+			dirty = false;
+		}
+		pthread_mutex_unlock(&video_mutex);
         BeginDrawing();
             DrawTexturePro(
-                renderTexture.texture,
-                (Rectangle){.x = 0, .y = 0, .width = 256, .height = 192},
+                tex,
+                (Rectangle){.x = 0, .y = 0, .width = tex.width, .height = tex.height},
                 (Rectangle){.x = 0, .y = 0, .width = GetScreenWidth(), .height = GetScreenHeight()},
                 (Vector2){0, 0},
                 0,
@@ -212,15 +216,17 @@ void renderLoop(void){
             );
         EndDrawing();
     }
+	UnloadTexture(tex);
 }
 void terminateScreen(void){
-    void* ret;
-    pthread_mutex_lock(&termination_mutex);
-    pthread_join(thread, &ret);
-    pthread_mutex_unlock(&termination_mutex);
+	if(thread) {
+		pthread_mutex_lock(&termination_mutex);
+		pthread_join(thread, NULL);
+		pthread_mutex_unlock(&termination_mutex);
+	}
     pthread_mutex_destroy(&video_mutex);
     pthread_mutex_destroy(&termination_mutex);
-    UnloadRenderTexture(renderTexture);
+    UnloadImage(bufferImage);
 }
 
 void checkTermination(void) {
@@ -248,6 +254,7 @@ void textOut(Coords coords, const char* ptr, Attrib attr){
         }
         ++x, ++ptr;
     }
+	dirty = true;
     pthread_mutex_unlock(&video_mutex);
 }
 

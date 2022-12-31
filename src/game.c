@@ -1,16 +1,18 @@
 #include "game.h"
 #include "data.h"
 #include "video.h"
+#include "menu.h"
 #include <stdbool.h>
 #include <strings.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
 void resetGlobals() {
-    // zero all but high scores
-    ZEROSTRUCT(gameOptions, GameOptions);
-    bzero(p1Score, sizeof(p1Score));
-    bzero(p2Score, sizeof(p2Score));
+    // zero all but high scores and controls
+    //ZEROSTRUCT(gameOptions, GameOptions);
+    p1Score = p2Score = 0;
     ZEROSTRUCT(jetmanState, ActorState);
     ZEROARRAY(laserBeamParam, LaserBeam);
     ZEROSTRUCT(explosionSfxParams, SoundData);
@@ -35,21 +37,36 @@ void resetGlobals() {
     ZEROARRAY(bufferItem, Buffer);
 }
 
-// check termination
 
-// menuScreen
-void menuScreen() {
-    checkTermination();
-
-}
 
 void gameLoop(void) {
     checkTermination();
 }
 
 void newGame(void) {
+    playerLevel = 0;
+    playerLives = 4;
+    //rocketReset ()=>tbd
+    inactivePlayerLevel = 0;
+    if(gameOptions.players) {
+        inactivePlayerLives = 5;
+    } else {
+        inactivePlayerLives = 0;
+    }
     gameLoop();
 }
+
+void showScore(int line, int col, uint32_t score) {
+    char* tmp = NULL;
+    size_t sz = 0;
+    score &= 0xffffff; //only three bytes
+    sz = snprintf(tmp, sz, "%d", score) + 1;
+    tmp = malloc(sz);
+    snprintf(tmp, sz, "%d", score);
+    textOut((Coords){.x = col * 8, .y = line}, tmp, (Attrib){.ink = 7, .bright = 1});
+    free(tmp);
+}
+
 void resetScreen(void){
     clearScreen((Attrib){.ink = 7, .paper = 0, .bright = 1}); 
     textOut((Coords){.x = 24, .y = 0}, "1UP", (Attrib){.attrib = 0x47});
@@ -58,6 +75,9 @@ void resetScreen(void){
     for(byte row = 0; row < 32; ++ row) {
         setAttrib(1, row, (Attrib){.attrib = 0x46});
     }
+    showScore(8, 1, p1Score);
+    showScore(8, 25, p2Score);
+    showScore(8, 13, hiScore);
 }
 
 void startGame(void) {

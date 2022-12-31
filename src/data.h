@@ -22,15 +22,15 @@ static inline void swap(byte* one, byte* two) {
 
 // data types
 
-extern byte hiScore[3];
+extern uint32_t hiScore;
 typedef struct {
     byte players:1;
     byte input:1;
 } GameOptions;
 extern GameOptions gameOptions;
 
-extern byte p1Score[3];
-extern byte p2Score[3];
+extern uint32_t p1Score;
+extern uint32_t     p2Score;
 
 typedef struct {
     byte fly:1; 
