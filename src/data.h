@@ -1,15 +1,23 @@
+#pragma once
 #include <stdint.h>
 
 typedef uint8_t byte;
 typedef int8_t sbyte;
 typedef uint16_t word;
+#define array_sizeof(n) (sizeof(n)/sizeof(n[0]))
 
 // utils
-sbyte abs(sbyte b) {
+static inline sbyte byteAbs(sbyte b) {
     return(b < 0 ? -b : b);
 }
-sbyte sgn(sbyte b) {
+static inline sbyte sgn(sbyte b) {
     return (b > 0) - (0 > b);
+}
+
+static inline void swap(byte* one, byte* two) {
+    byte tmp = *one;
+    *one = *two;
+    *two = tmp;
 }
 
 // data types
@@ -54,10 +62,17 @@ typedef struct{
 #define JETMAN_HEIGHT 0x24
 
 typedef struct {
-    Direction direction;
-    Coords coords;
+    union {
+        Direction direction;
+        byte udirection;
+    };
+    byte x;
+    byte y;
     byte color;
-    Moving moving;
+    union {
+        Moving moving;
+        byte umoving;
+    };
     byte xspeed;
     byte yspeed;
     byte height;
@@ -71,20 +86,20 @@ enum LaserBeamUsed {
 };
 
 typedef struct {
-    LaserBeamUsed used;
+    enum LaserBeamUsed used;
     byte y;
     byte x[4];
     byte lenght;
     byte color;
 } LaserBeam;
 
-LaserBeam laserBeamParam[4];
+extern LaserBeam laserBeamParam[4];
 
 typedef struct {
     byte frequency;
     byte duration;
-} Sound;
-extern Sound explosionSfxParams;
+} SoundData;
+extern SoundData explosionSfxParams;
 
 enum RMType {
     RMUnused = 0,
@@ -98,11 +113,11 @@ enum RMState {
     Dropped = 7
 };
 typedef struct {
-    RMType type;
+    enum RMType type;
     byte x;
     byte y;
     byte color;
-    RMState state;
+    enum RMState state;
     byte unused;
     byte jumpTableOffset;
     byte height;
@@ -117,7 +132,7 @@ enum Animating {
     Animating = 8
 };
 typedef struct {
-    Animating animating;
+    enum Animating animating;
     byte jetmanLastX;
     byte jetmanLastY;
     byte color;
@@ -166,7 +181,7 @@ enum PlayerNum {
     Player1 = 0,
     Player2 = 0xff
 };
-extern PlayerNum currentPlayerNumber; // 0 is player 1, ff is player 2
+extern enum PlayerNum currentPlayerNumber; // 0 is player 1, ff is player 2
 extern byte jetmanRocketModConnected; // 1 at start/newlife, 0 if rocket attached
 extern byte rocketModAttached; // 4 at start level, 2 if a rocket module attached
 extern byte lastFrame;
@@ -177,7 +192,7 @@ enum PlayerDelay {
     Player1Delay = 0x80,
     Player2Delay = 0xff
 };
-extern PlayerDelay playerDelayCounter; // 0x80 1 player, 0xff two player
+extern enum PlayerDelay playerDelayCounter; // 0x80 1 player, 0xff two player
 extern byte playerLevel;
 extern byte playerLives;
 extern byte inactivePlayerLevel;
@@ -193,3 +208,27 @@ typedef struct {
 extern Buffer bufferAliensRight[2];
 extern Buffer bufferAliensLeft[2];
 extern Buffer bufferItem[4];
+
+typedef struct {
+    byte color;
+    union {
+        Coords coords;
+        struct {
+            byte x;
+            byte y;
+        };
+    };
+    byte width;
+} GFXParams;
+extern GFXParams gfxParamsPlatforms[4];
+extern ActorState defaultPlayerState;
+extern ActorState defaultRocketState[3];
+extern ActorState defaultRocketModuleState;
+extern ActorState defaultCollectibleItemState;
+
+typedef struct {
+    byte attrib;
+    const char* msg;
+} Message;
+
+extern Message menuCopyright;
