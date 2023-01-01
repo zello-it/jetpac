@@ -13,16 +13,17 @@ void resetGlobals() {
     // zero all but high scores and controls
     //ZEROSTRUCT(gameOptions, GameOptions);
     p1Score = p2Score = 0;
-    ZEROSTRUCT(jetmanState, ActorState);
+    ZEROSTRUCT(jetmanState, State);
     ZEROARRAY(laserBeamParam, LaserBeam);
     ZEROSTRUCT(explosionSfxParams, SoundData);
-    ZEROSTRUCT(rocketModuleState, ModuleState);
-    ZEROSTRUCT(itemState, ModuleState);
-    ZEROSTRUCT(jetmanThrusterAnimState, AnimState);
-    ZEROARRAY(alienState, ActorState);
-    ZEROSTRUCT(jetmanExplodingAnimState, AnimState);
-    ZEROSTRUCT(inactiveJetmanState, ActorState);
-    ZEROARRAY(inactiveRocketState, ActorState);
+    ZEROSTRUCT(rocketState, State);
+    ZEROSTRUCT(rocketModuleState, State);
+    ZEROSTRUCT(itemState, State);
+    ZEROSTRUCT(jetmanThrusterAnimState, State);
+    ZEROARRAY(alienState, State);
+    ZEROSTRUCT(jetmanExplodingAnimState, State);
+    ZEROSTRUCT(inactiveJetmanState, State);
+    ZEROARRAY(inactiveRocketState, State);
     ZEROSTRUCT(actor, ActorTempState);
     alienNewDirFlag = currentAlienNumber = 0;
     gameTime = 0;
@@ -37,7 +38,9 @@ void resetGlobals() {
     ZEROARRAY(bufferItem, Buffer);
 }
 
-
+void bufferCopyRocket(void) {
+    
+}
 
 void gameLoop(void) {
     checkTermination();
@@ -46,7 +49,10 @@ void gameLoop(void) {
 void newGame(void) {
     playerLevel = 0;
     playerLives = 4;
-    //rocketReset ()=>tbd
+    rocketState = defaultRocketState[0];
+    rocketModuleState = defaultRocketState[1];
+    itemState = defaultRocketState[2];
+    bufferCopyRocket();
     inactivePlayerLevel = 0;
     if(gameOptions.players) {
         inactivePlayerLives = 5;

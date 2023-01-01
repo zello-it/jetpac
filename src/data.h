@@ -61,24 +61,49 @@ typedef struct{
 #define MAXSPEED_VERTICAL 0x3f
 #define JETMAN_HEIGHT 0x24
 
+enum RMType {
+    RMUnused = 0,
+    RMRocket = 0x4,
+    RMCollectible = 0xe
+};
+enum RMState {
+    New = 1,
+    Collected = 3,
+    FreeFall = 5,
+    Dropped = 7
+};
+
+enum Animating {
+    No = 0,
+    Done = 3,
+    Animating = 8
+};
+
+
 typedef struct {
     union {
+        enum Animating animating;
         Direction direction;
-        byte udirection;
+        enum RMType type;
+        byte utype;
     };
     byte x;
     byte y;
     byte color;
     union {
         Moving moving;
-        byte umoving;
+        enum RMState state;
+        byte frame;
     };
     byte xspeed;
-    byte yspeed;
+    union {
+        byte yspeed;
+        byte jumpTableOffset;
+    };
     byte height;
-} ActorState;
+} State;
 
-extern ActorState jetmanState;
+extern State jetmanState;
 
 enum LaserBeamUsed {
     LBUnused = 0,
@@ -101,55 +126,18 @@ typedef struct {
 } SoundData;
 extern SoundData explosionSfxParams;
 
-enum RMType {
-    RMUnused = 0,
-    RMRocket = 0x4,
-    RMCollectible = 0xe
-};
-enum RMState {
-    New = 1,
-    Collected = 3,
-    FreeFall = 5,
-    Dropped = 7
-};
-typedef struct {
-    enum RMType type;
-    byte x;
-    byte y;
-    byte color;
-    enum RMState state;
-    byte unused;
-    byte jumpTableOffset;
-    byte height;
-} ModuleState;
+extern State rocketState;
+extern State rocketModuleState;
+extern State itemState;
 
-extern ModuleState rocketModuleState;
-extern ModuleState itemState;
-
-enum Animating {
-    No = 0,
-    Done = 3,
-    Animating = 8
-};
-typedef struct {
-    enum Animating animating;
-    byte jetmanLastX;
-    byte jetmanLastY;
-    byte color;
-    byte frame;
-    byte unused1;
-    byte unknown;
-    byte unused2;
-} AnimState;
-
-extern AnimState jetmanThrusterAnimState;
+extern State jetmanThrusterAnimState;
 
 // aliens
-extern ActorState alienState[6];
+extern State alienState[6];
 
-extern AnimState jetmanExplodingAnimState;
-extern ActorState inactiveJetmanState;
-extern ActorState inactiveRocketState[3];
+extern State jetmanExplodingAnimState;
+extern State inactiveJetmanState;
+extern State inactiveRocketState[3];
 
 typedef struct {
     union {
@@ -221,10 +209,10 @@ typedef struct {
     byte width;
 } GFXParams;
 extern GFXParams gfxParamsPlatforms[4];
-extern ActorState defaultPlayerState;
-extern ActorState defaultRocketState[3];
-extern ActorState defaultRocketModuleState;
-extern ActorState defaultCollectibleItemState;
+extern State defaultPlayerState;
+extern State defaultRocketState[3];
+extern State defaultRocketModuleState;
+extern State defaultCollectibleItemState;
 
 typedef struct {
     byte attrib;
@@ -232,3 +220,20 @@ typedef struct {
 } Message;
 
 extern Message menuCopyright;
+
+typedef struct {
+    byte xoffset;
+    byte width;
+    byte height;
+    byte* data;
+} Sprite;
+
+typedef struct {
+    byte height;
+    byte* data;
+} AlienSprite;
+
+extern Sprite* collectibleSpriteTable[];
+extern Sprite* jetmanSpriteTable[];
+extern AlienSprite* alienSpriteTable[];
+extern Sprite* explosionSpriteTable[];
