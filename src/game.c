@@ -38,8 +38,69 @@ void resetGlobals() {
     ZEROARRAY(bufferItem, Buffer);
 }
 
+byte* writeThreeBytes(byte* what, byte* to, byte shift) {
+    byte b1, b2, b3;
+    b1 = *what++;
+    b2 = *what++;
+    b3 = 0;
+    while(shift--) {
+        byte rep = b1 & 1;
+        b1 >>= 1;
+        byte rep2 = b2 & 1;
+        b2 = (b2 >> 1) + rep;
+        b3 = (b3 >> 1) + rep2;
+    }
+    *to++ = b1;
+    *to++ = b2;
+    *to++ = b3;
+    return to;
+}
+
+void bufferCopy(byte* what, byte* where, byte howmanywords, byte shift) {
+    while(howmanywords--) {
+        where = writeThreeBytes(what, where, shift);
+    }
+}
+
 void bufferCopyRocket(void) {
-    
+    // copia quattro volte lo stesso modulo?
+    Sprite* sprite = collectibleSpriteTable[4 + playerLevel / 4];
+    Buffer* dest = bufferItem;
+    for(byte b = 0; b < 4; ++b) {
+        dest->header = 0;
+        dest->width = 3;
+        dest->height = (sprite->height > 0x11 ? sprite->height : 0x10);
+        bufferCopy(sprite->data, dest->pixel, dest->height, 0);
+    }
+}
+
+void displayPlayerLives(byte numplayer) {
+    int lives = (currentPlayerNumber == numplayer ? playerLives : inactivePlayerLives);
+    byte pos = (numplayer ? 0xb0 : 0x40);
+    Attrib a = {.bright = 1, .ink = 7};
+    if(lives) {
+        char* buf = numToChar(lives);
+        textOut((Coords){.x = pos, .y = 0}, buf, a);
+        squareOut((Coords){.x = pos + 8, .y = 0}, tileLifeIcon, a);
+    } else {
+        textOut((Coords){.x = pos, .y = 0}, "  ", a);
+    }
+}
+
+void playerInit() {
+    jetmanState = defaultPlayerState;
+    playerDelayCounter = (gameOptions.players ? 0xff : 0x80);
+    --playerLives;
+    displayPlayerLives(0);
+    displayPlayerLives(1);
+}
+
+void levelInit() {
+    alienBufferInit();
+    resetScreen();
+    drawPlatforms();
+    displayPlayerLives(0);
+    displayPlayerLives(1);
 }
 
 void gameLoop(void) {
@@ -59,6 +120,8 @@ void newGame(void) {
     } else {
         inactivePlayerLives = 0;
     }
+    levelInit();
+    playerInit();
     gameLoop();
 }
 

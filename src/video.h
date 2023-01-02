@@ -23,3 +23,4 @@ void terminateScreen(void);
 void clearScreen(Attrib attrib);
 void textOut(Coords coords, const char* msg, Attrib attrib); 
 void setAttrib(byte col, byte row, Attrib attrib);
+void squareOut(Coords coords, const byte* square, Attrib attrib);

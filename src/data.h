@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 typedef uint8_t byte;
 typedef int8_t sbyte;
@@ -18,6 +20,15 @@ static inline void swap(byte* one, byte* two) {
     byte tmp = *one;
     *one = *two;
     *two = tmp;
+}
+
+static inline char* numToChar(int num) {
+    char* ret = NULL;
+    size_t sz = 0;
+    sz = snprintf(ret, sz, "%d", num) + 1;
+    ret = malloc(sz);
+    snprintf(ret, sz, "%d", num);
+    return ret;
 }
 
 // data types
@@ -190,7 +201,7 @@ typedef struct {
     byte header;
     byte width;
     byte height;
-    byte pixel[0x31];
+    byte pixel[0x30];
 } Buffer;
 
 extern Buffer bufferAliensRight[2];
@@ -232,6 +243,8 @@ typedef struct {
     byte height;
     byte* data;
 } AlienSprite;
+
+extern byte tileLifeIcon[];
 
 extern Sprite* collectibleSpriteTable[];
 extern Sprite* jetmanSpriteTable[];

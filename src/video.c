@@ -242,19 +242,28 @@ void clearScreen(Attrib attrib){
     memset(attribs, attrib.attrib, sizeof(attribs));
 	pthread_mutex_unlock(&video_mutex);
 }
+
+void do_SquareOut(Coords coords, const byte* ptr) { //unlocked version
+	for(int i = 0; i < 8; ++i) {
+		video[coords.y + i][coords.x / 8] = ptr[i];
+	}
+	dirty = true;
+}
+void do_SquareOutAttrib(Coords coords, const byte* ptr, Attrib attr) {
+	attribs[coords.y / 8][coords.x / 8].attrib = attr.attrib;
+	do_SquareOut(coords, ptr);
+}
+
 void textOut(Coords coords, const char* ptr, Attrib attr){
-    byte x = coords.x / 8;
+    byte x = coords.x;
     byte y = coords.y;
     pthread_mutex_lock(&video_mutex);
     while(*ptr) {
         byte* ch = &charset[*ptr - 32][0];
-        attribs[y / 8][x].attrib = attr.attrib;
-        for(int i = 0; i < 8; ++i) {
-            video[y + i][x] = ch[i];
-        }
-        ++x, ++ptr;
+        do_SquareOutAttrib((Coords){.x = x, .y = y}, ch, attr);
+        ++ptr;
+		x += 8;
     }
-	dirty = true;
     pthread_mutex_unlock(&video_mutex);
 }
 
@@ -262,4 +271,10 @@ void setAttrib(byte col, byte row, Attrib attr) {
     pthread_mutex_lock(&video_mutex);
     attribs[row][col].attrib = attr.attrib;
     pthread_mutex_unlock(&video_mutex);
+}
+
+void squareOut(Coords coords, const byte* ptr, Attrib attr) {
+	pthread_mutex_lock(&video_mutex);
+	do_SquareOutAttrib(coords, ptr, attr);
+	pthread_mutex_unlock(&video_mutex);
 }

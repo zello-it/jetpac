@@ -562,3 +562,7 @@ AlienSprite* alienSpriteTable[] = {
     &frog_alien,
     &frog_alien
 };
+
+byte tileLifeIcon[] = {
+    0x18,0x24,0x3c,0x7e,0x5a,0x3c,0x3c,0x66
+};
