@@ -9,16 +9,16 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h> //not portable
-#include <errno.h> // for EBUSY
+#include <stdatomic.h>
 
 Image bufferImage;
 pthread_t thread = 0;
 pthread_t time_thread = 0;
-pthread_mutex_t termination_mutex = PTHREAD_MUTEX_INITIALIZER;
+atomic_bool terminate;
 pthread_mutex_t video_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool dirty = false;
-word gameTime = 0;
-pthread_mutex_t time_mutex = PTHREAD_MUTEX_INITIALIZER;
+atomic_uint_least16_t gameTime = 0;
+
 
 // charset
 
@@ -200,9 +200,7 @@ void* timeThreadMain(void* unused) {
 	while(true) {
 		checkTermination();
 		usleep(20000); // 1/50 of a second
-		pthread_mutex_lock(&time_mutex);
-		++gameTime;
-		pthread_mutex_unlock(&time_mutex);
+		atomic_fetch_add(&gameTime, 1);
 	}
 }
 
@@ -236,23 +234,19 @@ void renderLoop(void){
 	UnloadTexture(tex);
 }
 void terminateScreen(void){
-	pthread_mutex_lock(&termination_mutex);
+	atomic_store(&terminate, 1);
 	if(thread)
 		pthread_join(thread, NULL);
 	if(time_thread)
 		pthread_join(time_thread, NULL);
-	pthread_mutex_unlock(&termination_mutex);
     pthread_mutex_destroy(&video_mutex);
-    pthread_mutex_destroy(&termination_mutex);
-	pthread_mutex_destroy(&time_mutex);
     UnloadImage(bufferImage);
 }
 
 void checkTermination(void) {
-    if(pthread_mutex_trylock(&termination_mutex) == EBUSY) {
+    if(atomic_load(&terminate) == 1) {
         pthread_exit(NULL);
-    } else 
-        pthread_mutex_unlock(&termination_mutex);
+	}
 }
 
 void clearScreen(Attrib attrib){
@@ -307,15 +301,11 @@ void squareOut(Coords coords, const byte* ptr, Attrib attr) {
 }
 
 word getGameTime(){
-	pthread_mutex_lock(&time_mutex);
-	word ret = gameTime;
-	pthread_mutex_unlock(&time_mutex);
+	word ret = atomic_load(&gameTime);
 	return ret;
 }
 void resetGameTime() {
-	pthread_mutex_lock(&time_mutex);
-	gameTime = 0;
-	pthread_mutex_unlock(&time_mutex);
+	atomic_store(&gameTime, 0);
 }
 
 void playSound(byte pitch, byte duration){

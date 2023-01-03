@@ -1,9 +1,10 @@
 #pragma once
 #include "data.h"
 #include <pthread.h>
+#include <stdatomic.h>
 
 extern pthread_t thread;
-extern pthread_mutex_t termination_mutex;
+extern atomic_bool terminate;
 
 typedef union{
     byte attrib;

@@ -9,6 +9,7 @@ void* threadMain(void* ignored) {
 
 int main(int argn, char** args) {
     int ret = 0;
+    atomic_store(&terminate, 0);
     initScreen(); 
     if(!pthread_create(&thread, NULL, threadMain, NULL))
     {
