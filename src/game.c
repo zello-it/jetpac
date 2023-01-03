@@ -9,7 +9,8 @@
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
-void resetGlobals() {
+void resetScreen(void);
+void resetGlobals(void) {
     // zero all but high scores and controls
     //ZEROSTRUCT(gameOptions, GameOptions);
     p1Score = p2Score = 0;
@@ -93,6 +94,33 @@ void playerInit() {
     --playerLives;
     displayPlayerLives(0);
     displayPlayerLives(1);
+}
+
+void drawPlatforms() {
+    for(byte b = 0; b < array_sizeof(gfxParamsPlatforms); ++b) {
+        GFXParams* platform = &gfxParamsPlatforms[b];
+        if(platform->color) {
+            Coords coords;
+            Attrib attrib = {.attrib = platform->color};
+            byte width = platform->width;
+            coords.x = platform->x - (width & 0xfc) + 0x10;
+            coords.y = platform->y;
+            squareOut(coords, tilePlatformLeft, attrib);
+            byte counter = platform->width / 4 - 4;
+            while(counter-- > 0) {
+                coords.x += 8;
+                squareOut(coords, tilePlatformMiddle, attrib);
+            }
+            coords.x += 8;
+            squareOut(coords, tilePlatformRight, attrib);
+        }
+    }
+}
+void alienBufferInit() {
+    rocketModAttached = 4;
+    jetmanRocketModConnected = 0;
+    byte index = (playerLevel * 2) % 16;
+    
 }
 
 void levelInit() {

@@ -245,6 +245,9 @@ typedef struct {
 } AlienSprite;
 
 extern byte tileLifeIcon[];
+extern byte tilePlatformLeft[];
+extern byte tilePlatformMiddle[];
+extern byte tilePlatformRight[];
 
 extern Sprite* collectibleSpriteTable[];
 extern Sprite* jetmanSpriteTable[];
