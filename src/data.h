@@ -96,6 +96,7 @@ typedef struct {
         enum Animating animating;
         Direction direction;
         enum RMType type;
+        byte funIndex;
         byte utype;
     };
     byte x;
@@ -106,7 +107,10 @@ typedef struct {
         enum RMState state;
         byte frame;
     };
-    byte xspeed;
+    union {
+        byte xspeed;
+        byte fuelCollected;
+    };
     union {
         byte yspeed;
         byte jumpTableOffset;
@@ -150,6 +154,10 @@ extern State jetmanExplodingAnimState;
 extern State inactiveJetmanState;
 extern State inactiveRocketState[3];
 
+extern byte currentState;
+extern byte maxState;
+extern State* states[];
+
 typedef struct {
     union {
         Coords coords;
@@ -173,7 +181,6 @@ extern byte alienNewDirFlag;
 extern byte jetmanSpeedModifier;
 extern byte currentAlienNumber;
 
-extern word gameTime;
 
 extern Coords actorCoords;
 enum PlayerNum {
@@ -191,7 +198,7 @@ enum PlayerDelay {
     Player1Delay = 0x80,
     Player2Delay = 0xff
 };
-extern enum PlayerDelay playerDelayCounter; // 0x80 1 player, 0xff two player
+extern byte playerDelayCounter; // 0x80 1 player, 0xff two player
 extern byte playerLevel;
 extern byte playerLives;
 extern byte inactivePlayerLevel;
@@ -223,7 +230,8 @@ extern GFXParams gfxParamsPlatforms[4];
 extern State defaultPlayerState;
 extern State defaultRocketState[3];
 extern State defaultRocketModuleState;
-extern State defaultCollectibleItemState;
+extern State defaultItemState;
+extern State defaultAlienState;
 
 typedef struct {
     byte attrib;
@@ -253,3 +261,5 @@ extern Sprite* collectibleSpriteTable[];
 extern Sprite* jetmanSpriteTable[];
 extern AlienSprite* alienSpriteTable[];
 extern Sprite* explosionSpriteTable[];
+extern byte itemLevelObjectTypes[8];
+extern byte itemDropPositionTable[];

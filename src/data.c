@@ -20,7 +20,6 @@ ActorTempState actor;
 byte alienNewDirFlag;
 byte jetmanSpeedModifier;
 byte currentAlienNumber;
-word gameTime;
 Coords actorCoords;
 enum PlayerNum currentPlayerNumber;
 byte jetmanRocketModConnected;
@@ -28,7 +27,7 @@ byte rocketModAttached;
 byte lastFrame;
 byte frameTicked;
 byte currentColorAttribute;
-enum PlayerDelay playerDelayCounter;
+byte playerDelayCounter;
 byte playerLevel;
 byte playerLives;
 byte inactivePlayerLevel;
@@ -36,6 +35,32 @@ byte inactivePlayerLives;
 Buffer bufferAliensRight[2];
 Buffer bufferAliensLeft[2];
 Buffer bufferItem[4];
+State padding = {0, 0, 0, 0, 0, 0, 0, 0};
+// state array
+State* states[] = {
+   &jetmanState,
+   &rocketState,                 //0
+   &rocketModuleState,           //1
+   &itemState,                   //2
+   &jetmanThrusterAnimState,     //3
+   &alienState[0],               //4
+   &alienState[1],               //5
+   &alienState[2],               //6
+   &alienState[3],               //7
+   &alienState[4],               //8
+   &alienState[5],               //9
+   &jetmanExplodingAnimState,    //10 0xa
+   &inactiveJetmanState,         //11 0xb
+   &padding,                     //12 0xc
+   &inactiveRocketState[0],
+   &inactiveRocketState[1],
+   &inactiveRocketState[2],
+   // there is some padding
+   &padding,
+   &padding
+};
+byte currentState;
+byte maxState = 0x0c;
 
 // inizialized data
 GFXParams gfxParamsPlatforms[] = {
@@ -56,8 +81,20 @@ State defaultRocketState[] = {
 State defaultRocketModuleState = {
     .utype = 0x04, 0x00, 0x20, 0x43, .frame = 0x01, 0x00, 0x18, 0x18
 };
-State defaultCollectibleItemState = {
+State defaultItemState = {
     .utype = 0x0e, 0x00, 0x20, 0x00, .frame = 0x00, 0x00, 0x00, 0x18
+};
+State defaultAlienState = {
+    .utype = 0x03, 0x00, 0x00, 0x42, .frame = 0x80, 0x04, 0x00, 0x1c
+};
+
+byte itemLevelObjectTypes[] = {
+   0x03, 0x11, 0x06, 0x07, 0x0f, 0x05, 0x03, 0x0f
+};
+
+byte itemDropPositionTable[] = {
+   0x08,0x20,0x28,0x30,0x38,0x40,0x58,0x60,
+   0x78,0x80,0x88,0xc0,0xe0,0x08,0x58,0x60   
 };
 
 Message menuCopyright = {

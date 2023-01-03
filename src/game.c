@@ -6,9 +6,53 @@
 #include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <raylib.h> //for keyboard, could be abstracted
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
+
+void frameRateLimiter(void);
+void gamePlayStarts(void);
+void jetmanWalk(void);
+void meteorUpdate(void);
+void collisionDetection(void);
+void crossedShipUpdate(void);
+void sphereAlienUpdate(void);
+void jetFighterUpdate(void);
+void animateExplosion(void);
+void rocketUpdate(void);
+void rocketTakeoff(void);
+void rocketLanding(void);
+void sfxEnemyDeath(void);
+void sfxJetmanDeath(void);
+void itemCheckCollect(void);
+void ufoUpdate(void);
+void laserBeamAnimate(void);
+void squidgyAlienUpdate(void);
+
+typedef void(*Fun)(void);
+Fun mainJumpTable[] = {
+    frameRateLimiter,
+    gamePlayStarts,
+    jetmanWalk,
+    meteorUpdate,
+    collisionDetection,
+    crossedShipUpdate,
+    sphereAlienUpdate,
+    jetFighterUpdate,
+    animateExplosion,
+    rocketUpdate,
+    rocketTakeoff,
+    rocketLanding,
+    sfxEnemyDeath,
+    sfxJetmanDeath,
+    itemCheckCollect,
+    ufoUpdate,
+    laserBeamAnimate,
+    squidgyAlienUpdate
+};
+
+void newActor(void);
 void resetScreen(void);
 void resetGlobals(void) {
     // zero all but high scores and controls
@@ -27,7 +71,7 @@ void resetGlobals(void) {
     ZEROARRAY(inactiveRocketState, State);
     ZEROSTRUCT(actor, ActorTempState);
     alienNewDirFlag = currentAlienNumber = 0;
-    gameTime = 0;
+    resetGameTime();
     ZEROSTRUCT(actorCoords, Coords);
     currentPlayerNumber = Player1;
     jetmanRocketModConnected = rocketModAttached = lastFrame = frameTicked = 0;
@@ -57,9 +101,15 @@ byte* writeThreeBytes(byte* what, byte* to, byte shift) {
     return to;
 }
 
-void bufferCopy(byte* what, byte* where, byte howmanywords, byte shift) {
-    while(howmanywords--) {
-        where = writeThreeBytes(what, where, shift);
+void bufferCopy(byte* what, Buffer* where, byte height, byte shift) {
+    where->header = 0;
+    where->width = 3;
+    height = (height > 0x11 ? height : 0x10);
+    where->height = height;
+    byte* ptrto = where->pixel;
+    while(height--) {
+        ptrto = writeThreeBytes(what, ptrto, shift);
+        what += 2;
     }
 }
 
@@ -68,10 +118,7 @@ void bufferCopyRocket(void) {
     Sprite* sprite = collectibleSpriteTable[4 + playerLevel / 4];
     Buffer* dest = bufferItem;
     for(byte b = 0; b < 4; ++b) {
-        dest->header = 0;
-        dest->width = 3;
-        dest->height = (sprite->height > 0x11 ? sprite->height : 0x10);
-        bufferCopy(sprite->data, dest->pixel, dest->height, 0);
+        bufferCopy(sprite->data, dest + b, sprite->height, 0);
     }
 }
 
@@ -90,7 +137,7 @@ void displayPlayerLives(byte numplayer) {
 
 void playerInit() {
     jetmanState = defaultPlayerState;
-    playerDelayCounter = (gameOptions.players ? 0xff : 0x80);
+    playerDelayCounter = (gameOptions.players ? Player2Delay : Player1Delay);
     --playerLives;
     displayPlayerLives(0);
     displayPlayerLives(1);
@@ -120,10 +167,20 @@ void alienBufferInit() {
     rocketModAttached = 4;
     jetmanRocketModConnected = 0;
     byte index = (playerLevel * 2) % 16;
-    
+    for(byte b = 0; b < 2; ++b) {
+        AlienSprite* sprite = alienSpriteTable[index++];
+        Buffer* buf = &bufferAliensRight[b];
+        bufferCopy(sprite->data, buf, sprite->height, 0);
+    }
+    for(byte b = 0; b < 2; ++b) {
+        AlienSprite* sprite = alienSpriteTable[index++];
+        Buffer* buf = &bufferAliensLeft[b];
+        bufferCopy(sprite->data, buf, sprite->height, 0);
+    }
 }
 
-void levelInit() {
+void levelInit(void) {
+    currentState = 0;
     alienBufferInit();
     resetScreen();
     drawPlatforms();
@@ -131,26 +188,49 @@ void levelInit() {
     displayPlayerLives(1);
 }
 
-void gameLoop(void) {
-    checkTermination();
-}
-
-void newGame(void) {
-    playerLevel = 0;
-    playerLives = 4;
+void rocketReset() {
     rocketState = defaultRocketState[0];
     rocketModuleState = defaultRocketState[1];
     itemState = defaultRocketState[2];
     bufferCopyRocket();
+}
+
+void levelNew(void) {
+    if(!playerLevel % 4) {
+        rocketReset();
+        ++playerLives;
+        playerInit();
+    }
+    levelInit();
+}
+
+void mainLoop(void) {
+    while(true) {
+        checkTermination();
+        byte funToCall = states[currentState]->utype;
+        // should not be needed, just in case while debugging
+#ifndef NDEBUG
+        funToCall &= 0x1f;
+#endif
+        mainJumpTable[funToCall]();
+        newActor();
+    }
+}
+
+void newGame(void) {
+    srand(time(NULL));
+    playerLevel = 0;
+    playerLives = 4;
+    rocketReset();
     inactivePlayerLevel = 0;
     if(gameOptions.players) {
         inactivePlayerLives = 5;
     } else {
         inactivePlayerLives = 0;
     }
-    levelInit();
-    playerInit();
-    gameLoop();
+    levelNew();
+    currentAlienNumber = 0;
+    mainLoop();
 }
 
 void showScore(int line, int col, uint32_t score) {
@@ -183,4 +263,141 @@ void startGame(void) {
     jetmanSpeedModifier = 0x4;
     menuScreen();
     newGame();
+}
+
+// update functions
+void frameRateLimiter(void){
+    static byte lastFrame = 0;
+    byte time;
+    do {
+        time = (byte)getGameTime();
+    } while (time == lastFrame);
+    lastFrame = time;
+}
+
+void jetmanFlyThrust(void) {
+}
+
+void sfxPickupItem() {
+    playSound(0x30, 0x40);
+}
+
+void scoreLabelFlash(Coords coords, bool on) {
+    Attrib a = getAttrib(coords.x / 8, coords.y / 8);
+    if(a.flash != on) {
+        a.flash = on;
+        setAttrib(coords.x / 8, coords.y / 8, a);
+    }
+}
+
+
+void gamePlayStarts(void){
+    if(playerDelayCounter) {
+        --playerDelayCounter;
+        Coords coords = {
+            .x = (currentPlayerNumber ? 0xd8 : 0x18),
+            .y = 0 
+        };
+        if(playerDelayCounter) {
+            scoreLabelFlash(coords, true);
+        } else {
+            sfxPickupItem();
+            scoreLabelFlash(coords, false);
+        }
+    }
+    if(!playerDelayCounter)
+        jetmanFlyThrust();
+}
+
+void jetmanWalk(void){}
+void meteorUpdate(void){}
+void collisionDetection(void){}
+void crossedShipUpdate(void){}
+void sphereAlienUpdate(void){}
+void jetFighterUpdate(void){}
+void animateExplosion(void){}
+void rocketUpdate(void){}
+void rocketTakeoff(void){}
+void rocketLanding(void){}
+void sfxEnemyDeath(void){}
+void sfxJetmanDeath(void){}
+void itemCheckCollect(void){}
+void ufoUpdate(void){}
+void laserBeamAnimate(void){}
+void squidgyAlienUpdate(void){}
+
+byte itemCalcDropColumn(void) {
+    return itemDropPositionTable[rand() & 0xf];    
+}
+
+static bool invalidJetmanState() {
+    return (
+        jetmanState.utype == 0 ||
+        (jetmanState.utype & 0x3f) >= 3
+    );
+}
+
+void itemNewFuelPod() {
+    if(
+        invalidJetmanState() || // impossible?  
+        rocketModuleState.type != RMUnused ||
+        rocketState.fuelCollected >= 6 ||
+        (getGameTime() & 0xf) != 0
+    ) {
+        return;
+    }
+    rocketModuleState = defaultRocketModuleState;
+    rocketModuleState.x = itemCalcDropColumn();
+}
+void itemNewCollectible() {
+    if(
+        invalidJetmanState() ||
+        itemState.type != RMUnused ||
+        (getGameTime() & 0x7f)
+    ) {
+        return;
+    }
+    itemState = defaultItemState;
+    itemState.x = itemCalcDropColumn();
+    byte r = (rand() & 0xe);
+    if(r & 0x8)
+        r = 0x8; // 1000 0110 0100 0010 0000 = 8 6 4 2
+    r |= 0x20;  // 32 + 8|6|4|2|0
+    itemState.jumpTableOffset = r;
+}
+
+void newActor(void){
+    ++currentState;
+    if(currentState > maxState) {  // @FIX self modifying code
+        while(IsKeyDown(KEY_LEFT_SHIFT));
+        byte r = (byte) rand();
+        if(
+            (r > 32 || currentAlienNumber > 3) || 
+            currentAlienNumber <= 6 ||
+            playerDelayCounter == 0 ||
+            jetmanState.direction.fly == 0
+        )
+        {
+            for(byte b = 0; b < array_sizeof(alienState); ++b) {
+                if(alienState[b].type == RMUnused) {
+                    alienState[b] = defaultAlienState;
+                    r = (rand() & 1 ? 0x20 : 0);
+                    alienState[b].frame = r; //moving
+                    alienState[b].utype = r; //direction
+                    r = rand() & 0x7f + 0x28;
+                    alienState[b].y = r;
+                    r = rand() & 0x3 + 2;
+                    alienState[b].color = r;
+                    alienState[b].jumpTableOffset = (r & 1);
+                    r = itemLevelObjectTypes[playerLevel & 0x07];
+                    r |= (alienState[b].utype & 0xc0);
+                    alienState[b].utype = r;
+                    break;
+                }
+            }
+        }
+        itemNewFuelPod();
+        itemNewCollectible();
+        currentState = 0;
+    }
 }
