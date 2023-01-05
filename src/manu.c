@@ -42,7 +42,7 @@ static struct {
 };
 
 void menuDrawEntry(byte nr) {
-    textOut(
+    textOutAttrib(
       (Coords){.x = 0x30, .y = menuEntries[nr].line},
       menuEntries[nr].text,
       menuEntries[nr].attrib

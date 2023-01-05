@@ -22,10 +22,19 @@ void checkTermination(void);
 void terminateScreen(void);
 
 void clearScreen(Attrib attrib);
-void textOut(Coords coords, const char* msg, Attrib attrib); 
+void textOutAttrib(Coords coords, const char* msg, Attrib attrib);
+void textOut(Coords coords, const char* msg); 
 void setAttrib(byte col, byte row, Attrib attrib);
 Attrib getAttrib(byte col, byte row);
 void squareOut(Coords coords, const byte* square, Attrib attrib);
+
+enum Operator{
+    EQUAL,
+    OR,
+    XOR,
+    AND
+};
+void byteOut(Coords coords, const byte byte, enum Operator op);
 
 void playSound(byte pitch, byte duration);
 

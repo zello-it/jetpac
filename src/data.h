@@ -41,7 +41,7 @@ typedef struct {
 extern GameOptions gameOptions;
 
 extern uint32_t p1Score;
-extern uint32_t     p2Score;
+extern uint32_t p2Score;
 
 typedef struct {
     byte fly:1; 
@@ -117,7 +117,6 @@ typedef struct {
     };
     byte height;
 } State;
-
 extern State jetmanState;
 
 enum LaserBeamUsed {
@@ -166,7 +165,10 @@ typedef struct {
             byte y;
         };
     };
-    Direction direction;
+    union {
+        Direction direction;
+        byte movement;
+    };
     byte height; //pix
     byte width;  //tiles
     byte spriteHeight;

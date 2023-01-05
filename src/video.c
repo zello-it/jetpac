@@ -10,13 +10,12 @@
 #include <stdbool.h>
 #include <unistd.h> //not portable
 #include <stdatomic.h>
+#include <assert.h>
 
 Image bufferImage;
 pthread_t thread = 0;
-pthread_t time_thread = 0;
 atomic_bool terminate;
 pthread_mutex_t video_mutex = PTHREAD_MUTEX_INITIALIZER;
-bool dirty = false;
 atomic_uint_least16_t gameTime = 0;
 
 
@@ -152,7 +151,7 @@ Color zxcolors[2][8] = {
 int getMillis() {
     clock_t t = clock();
     return (t * 1000) / CLOCKS_PER_SEC;
-}
+}    	
 
 void swapColors(Color* one, Color* two){
     Color tmp = *one;
@@ -193,32 +192,20 @@ void copyBuffer() {
             }
         }
     }
-    
-}
-
-void* timeThreadMain(void* unused) {
-	while(true) {
-		checkTermination();
-		usleep(20000); // 1/50 of a second
-		atomic_fetch_add(&gameTime, 1);
-	}
 }
 
 void initScreen(void) {
     InitWindow(800, 600, "jetpac");
     bufferImage = GenImageColor(256, 192, BLACK);
-	if(pthread_create(&time_thread, NULL, timeThreadMain, NULL))
-		exit(-1);
 }
 void renderLoop(void){
 	Texture2D tex = LoadTextureFromImage(bufferImage);
     while(!WindowShouldClose()) {
+		usleep(2000);
+		atomic_fetch_add(&gameTime, 1);
 		pthread_mutex_lock(&video_mutex);
-		if(dirty) {
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
-			dirty = false;
-		}
 		pthread_mutex_unlock(&video_mutex);
         BeginDrawing();
             DrawTexturePro(
@@ -237,8 +224,6 @@ void terminateScreen(void){
 	atomic_store(&terminate, 1);
 	if(thread)
 		pthread_join(thread, NULL);
-	if(time_thread)
-		pthread_join(time_thread, NULL);
     pthread_mutex_destroy(&video_mutex);
     UnloadImage(bufferImage);
 }
@@ -260,14 +245,13 @@ void do_SquareOut(Coords coords, const byte* ptr) { //unlocked version
 	for(int i = 0; i < 8; ++i) {
 		video[coords.y + i][coords.x / 8] = ptr[i];
 	}
-	dirty = true;
 }
 void do_SquareOutAttrib(Coords coords, const byte* ptr, Attrib attr) {
 	attribs[coords.y / 8][coords.x / 8].attrib = attr.attrib;
 	do_SquareOut(coords, ptr);
 }
 
-void textOut(Coords coords, const char* ptr, Attrib attr){
+void textOutAttrib(Coords coords, const char* ptr, Attrib attr){
     byte x = coords.x;
     byte y = coords.y;
     pthread_mutex_lock(&video_mutex);
@@ -280,10 +264,22 @@ void textOut(Coords coords, const char* ptr, Attrib attr){
     pthread_mutex_unlock(&video_mutex);
 }
 
+void textOut(Coords coords, const char* ptr){
+    byte x = coords.x;
+    byte y = coords.y;
+    pthread_mutex_lock(&video_mutex);
+    while(*ptr) {
+        byte* ch = &charset[*ptr - 32][0];
+        do_SquareOut((Coords){.x = x, .y = y}, ch);
+        ++ptr;
+		x += 8;
+    }
+    pthread_mutex_unlock(&video_mutex);
+}
+
 void setAttrib(byte col, byte row, Attrib attr) {
     pthread_mutex_lock(&video_mutex);
     attribs[row][col].attrib = attr.attrib;
-	dirty = true;
     pthread_mutex_unlock(&video_mutex);
 }
 
@@ -297,6 +293,29 @@ Attrib getAttrib(byte col, byte row) {
 void squareOut(Coords coords, const byte* ptr, Attrib attr) {
 	pthread_mutex_lock(&video_mutex);
 	do_SquareOutAttrib(coords, ptr, attr);
+	pthread_mutex_unlock(&video_mutex);
+}
+
+void byteOut(Coords coords, const byte byte1, enum Operator op) {
+	pthread_mutex_lock(&video_mutex);
+	byte* b = &video[coords.y][coords.x / 8];
+	switch(op) {
+		case EQUAL:
+			*b = byte1;
+			break;
+		case OR:
+			*b |= byte1;
+			break;
+		case AND:
+			*b &= byte1;
+			break;
+		case XOR:
+			*b ^= byte1;
+			break;
+		default:
+			assert(0);
+			break;
+	}
 	pthread_mutex_unlock(&video_mutex);
 }
 
