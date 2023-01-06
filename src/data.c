@@ -32,9 +32,7 @@ byte playerLevel;
 byte playerLives;
 byte inactivePlayerLevel;
 byte inactivePlayerLives;
-Buffer bufferAliensRight[2];
-Buffer bufferAliensLeft[2];
-Buffer bufferItem[4];
+
 State padding = {0, 0, 0, 0, 0, 0, 0, 0};
 // state array
 State* states[] = {
@@ -95,6 +93,11 @@ byte itemLevelObjectTypes[] = {
 byte itemDropPositionTable[] = {
    0x08,0x20,0x28,0x30,0x38,0x40,0x58,0x60,
    0x78,0x80,0x88,0xc0,0xe0,0x08,0x58,0x60   
+};
+
+SoundData explosionSfxDefaults[] = {
+   {0x0c, 0x04},
+   {0x0d, 0x04}
 };
 
 Message menuCopyright = {
@@ -428,26 +431,6 @@ SPRITE(jetman_walk_right1, 0, 2, 0x18);
 SPRITE(jetman_walk_right2, 0, 2, 0x18);
 SPRITE(jetman_walk_right3, 0, 3, 0x18);
 SPRITE(jetman_walk_right4, 0, 3, 0x18);
-
-Sprite* jetmanSpriteTable[] = {
-    &jetman_fly_right1,
-    &jetman_fly_right2,
-    &jetman_fly_right3,
-    &jetman_fly_right4,
-    &jetman_fly_left4,
-    &jetman_fly_left3,
-    &jetman_fly_left2,
-    &jetman_fly_left1,
-    &jetman_walk_right1,
-    &jetman_walk_right2,
-    &jetman_walk_right3,
-    &jetman_walk_right4,
-    &jetman_walk_left4,
-    &jetman_walk_left3,
-    &jetman_walk_left2,
-    &jetman_walk_left1
-};
-
 SPRITE(explosion_big, 0, 3, 0x10);
 SPRITE(explosion_medium, 0, 3, 0x10);
 SPRITE(explosion_small, 0, 3, 0x10);
@@ -581,6 +564,56 @@ ALIENSPRITE(cross_ship, 0x0f);
 ALIENSPRITE(space_craft, 0x0e);
 ALIENSPRITE(frog_alien, 0x0e);
 
+byte buffers[8][0x30];
+Sprite bufferAliensRight[2] = {
+   {0, 0, 0, buffers[0]},
+   {0, 0, 0, buffers[1]}
+};
+Sprite bufferAliensLeft[2] = {
+   {0, 0, 0, buffers[2]},
+   {0, 0, 0, buffers[3]}
+};
+Sprite bufferItems[4] = {
+   {0, 0, 0, buffers[4]},
+   {0, 0, 0, buffers[5]},
+   {0, 0, 0, buffers[6]},
+   {0, 0, 0, buffers[7]}
+};
+
+Sprite* spriteTable[] = {
+    &jetman_fly_right1,
+    &jetman_fly_right2,
+    &jetman_fly_right3,
+    &jetman_fly_right4,
+    &jetman_fly_left4,        // 5
+    &jetman_fly_left3,
+    &jetman_fly_left2,
+    &jetman_fly_left1,
+    &jetman_walk_right1,
+    &jetman_walk_right2,      //10
+    &jetman_walk_right3,
+    &jetman_walk_right4,
+    &jetman_walk_left4,
+    &jetman_walk_left3,
+    &jetman_walk_left2,       
+    &jetman_walk_left1,        //16
+    &bufferAliensRight[0],
+    &bufferAliensRight[0],
+    &bufferAliensRight[1],
+    &bufferAliensRight[1],
+    &bufferAliensLeft[1],
+    &bufferAliensLeft[1],
+    &bufferAliensLeft[0],
+    &bufferAliensLeft[0],
+    &bufferItems[0],
+    &bufferItems[1],
+    &bufferItems[2],
+    &bufferItems[3],
+    &bufferItems[3],
+    &bufferItems[2],
+    &bufferItems[1],
+    &bufferItems[0]
+};
 AlienSprite* alienSpriteTable[] = {
     &meteor1,
     &meteor2,

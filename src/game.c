@@ -78,9 +78,18 @@ void resetGlobals(void) {
     playerDelayCounter = 0;
     playerLevel = 0;
     playerLives = inactivePlayerLevel = inactivePlayerLives = 0;
-    ZEROARRAY(bufferAliensRight, Buffer);
-    ZEROARRAY(bufferAliensLeft, Buffer);
-    ZEROARRAY(bufferItem, Buffer);
+    ZEROARRAY(bufferAliensRight, Sprite);
+    bufferAliensRight[0].data = buffers[0];
+    bufferAliensRight[1].data = buffers[1];
+    ZEROARRAY(bufferAliensLeft, Sprite);
+    bufferAliensLeft[0].data = buffers[2];
+    bufferAliensLeft[1].data = buffers[3];
+    ZEROARRAY(bufferItems, Sprite);
+    bufferItems[0].data = buffers[4];
+    bufferItems[1].data = buffers[5];
+    bufferItems[2].data = buffers[6];
+    bufferItems[3].data = buffers[7];
+    bzero(buffers, sizeof(buffers));
 }
 
 byte* writeThreeBytes(byte* what, byte* to, byte shift) {
@@ -101,12 +110,12 @@ byte* writeThreeBytes(byte* what, byte* to, byte shift) {
     return to;
 }
 
-void bufferCopy(byte* what, Buffer* where, byte height, byte shift) {
-    where->header = 0;
+void bufferCopy(byte* what, Sprite* where, byte height, byte shift) {
+    where->xoffset = 0;
     where->width = 3;
     height = (height > 0x11 ? height : 0x10);
     where->height = height;
-    byte* ptrto = where->pixel;
+    byte* ptrto = where->data;
     while(height--) {
         ptrto = writeThreeBytes(what, ptrto, shift);
         what += 2;
@@ -116,7 +125,7 @@ void bufferCopy(byte* what, Buffer* where, byte height, byte shift) {
 void bufferCopyRocket(void) {
     // copia quattro volte lo stesso modulo?
     Sprite* sprite = collectibleSpriteTable[4 + playerLevel / 4];
-    Buffer* dest = bufferItem;
+    Sprite* dest = bufferItems;
     for(byte b = 0; b < 4; ++b) {
         bufferCopy(sprite->data, dest + b, sprite->height, 0);
     }
@@ -173,12 +182,12 @@ void alienBufferInit() {
     byte index = (playerLevel * 2) % 16;
     for(byte b = 0; b < 2; ++b) {
         AlienSprite* sprite = alienSpriteTable[index++];
-        Buffer* buf = &bufferAliensRight[b];
+        Sprite* buf = &bufferAliensRight[b];
         bufferCopy(sprite->data, buf, sprite->height, 0);
     }
     for(byte b = 0; b < 2; ++b) {
         AlienSprite* sprite = alienSpriteTable[index++];
-        Buffer* buf = &bufferAliensLeft[b];
+        Sprite* buf = &bufferAliensLeft[b];
         bufferCopy(sprite->data, buf, sprite->height, 0);
     }
 }
@@ -249,14 +258,18 @@ void newGame(void) {
 }
 
 void showScore(int line, int col, uint32_t score) {
-    char* tmp = NULL;
-    size_t sz = 0;
-    score &= 0xffffff; //only three bytes
-    sz = snprintf(tmp, sz, "%d", score) + 1;
-    tmp = malloc(sz);
-    snprintf(tmp, sz, "%d", score);
-    textOutAttrib((Coords){.x = col * 8, .y = line}, tmp, (Attrib){.ink = 7, .bright = 1});
-    free(tmp);
+    static char buf[7]; // max score is 999999
+    snprintf(buf, 7, "%06d", score);
+    textOutAttrib((Coords){.x = col * 8, .y = line}, buf, (Attrib){.ink = 7, .bright = 1});
+}
+
+void addPointsToScore(byte b) {
+    static byte xpos[] = {1, 25};
+    uint32_t* score = (currentPlayerNumber ? &p2Score : &p1Score);
+    *score += b;
+    if(*score > 999999) 
+        *score = 999999;
+    showScore(1, xpos[currentPlayerNumber], *score);
 }
 
 void resetScreen(void){
@@ -319,6 +332,7 @@ void gamePlayStarts(void){
         jetmanFlyThrust();
 }
 
+
 Coords getSpritePosition(Sprite* sprite, ActorTempState* buf) {
     Coords ret;
     ret.x = sprite->xoffset + buf->coords.x;
@@ -351,13 +365,13 @@ void maskSprite(byte* spritedata, Coords coords, byte maskheight, byte spritehei
 }
 
 Sprite* actorGetSpriteAddress(byte x, byte header) {
-    if(header & (1 << 5)) {
-        x |= (1 << 2);
+    if(header & 0x40) {
+        x |= 0x8;
     }
     --header;
     byte index = (header << 4) & 0xf0 | x;
     index >>= 1; // word to index
-    return jetmanSpriteTable[index];
+    return spriteTable[index];
 }
 
 Sprite* actorFindPosDir(void) {
@@ -404,13 +418,45 @@ byte actorUpdateSize(Sprite* sprite, Coords coords){
 
 void actorEraseMovedSprite(State* state, Sprite* sprite, Coords coords) {
     sbyte diff = actor.y - state->y;
-    actorUpdateSize(sprite, coords);
+    if(diff == 0) {
+        actorUpdateSize(sprite, coords);
+        return;
+    }
+    if(diff > 0) {
+        if(actor.height > diff) {
+            actorUpdateSize(sprite, coords);
+            return;
+        }
+        actor.height -= diff;
+        maskSprite(sprite->data, coords, diff, actor.height, actor.width);
+    } else {
+        diff = byteAbs(diff);
+        if(actor.spriteHeight < diff)
+            actorUpdateSize(sprite, coords);
+        else{
+            actor.spriteHeight -= diff;
+            maskSprite(sprite->data, coords, diff, actor.spriteHeight, actor.width);
+        }
+    }
 }
 
 void actorUpdatePosition(State* state, Sprite* sprite) {
     Coords coords = getSpritePosition(sprite, &actor);
     actorUpdate(state, sprite);
     actorEraseMovedSprite(state, sprite, coords);
+}
+
+
+Sprite* findActorSpriteAndUpdate(State* state) {
+    Sprite* sprite = actorGetSpriteAddress(state->x & 0x6, state->spriteIndex);
+    actorUpdate(state, sprite);
+    return sprite;
+}
+
+void updateAndEraseActor(State* state) {
+    Sprite* s = findActorSpriteAndUpdate(state);
+    Sprite* spriteActor = actorFindPosDir();
+    actorEraseMovedSprite(state, spriteActor, actorCoords);
 }
 
 bool alienCollision(State* state) {
@@ -438,6 +484,105 @@ void colorizeSprite(State* state) {
         setAttrib(col, actorCoords.y - h, a);
     }
    } 
+}
+
+byte jetmanPlatformCollision(State* state) {
+    byte eRet;
+    for(byte b = 0; b < 4; ++b) {
+        eRet = 0;
+        GFXParams* platform = &gfxParamsPlatforms[b];
+        sbyte diff = platform->x - state->x;
+        if(diff >= 0) {
+            // L75D1
+            if((state->spriteIndex & 0x1f) ==0)
+            {
+                if(diff >= 9)
+                    diff -= 9;
+            }
+        }
+        else {
+            diff = byteAbs(diff);
+            eRet |= 0x40;
+        }
+        if(diff > platform->width) {
+            continue;
+        }
+        diff += 0x12;
+        if(diff >= platform->width) {
+            eRet |= 8;
+        }
+        diff = state->y - platform->y + 2;
+        if(diff < 0) // no hit
+            continue;
+        if(diff < 2) {// hit from above, Y_2
+            eRet = 0x84;
+            break;
+        } else if(diff < state->height) { // hit from below
+            eRet |= 0x4;
+            break;
+        } else if((diff - 2) > state->height) {
+            eRet |= 0x14;
+            break;
+        }
+    }
+    return eRet;
+}
+
+byte laserBeamFire(State* state) {
+    byte cRet = 0;
+    for(byte b = 0; b < array_sizeof(laserBeamParam);  ++b) {
+        LaserBeam* beam = &laserBeamParam[b];
+        if(beam->used == LBUnused) {
+            byte a = beam->x[1];
+            if(a & 0x4){
+                sbyte diff = (a & 0xf8) - state->x;
+                byte c = (diff >= 0? 0x20 : 0x08);
+                diff = byteAbs(diff); 
+                if(diff < c) {
+                    diff = state->y - beam->y;
+                    if(diff >= 0) {
+                        diff += 0xc;
+                        if(diff < state->height) {
+                            cRet = 1;
+                            beam->x[0] &= 0xf8;
+                            break;
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+    return cRet;
+}
+
+void enableAnimationState(State* state, byte value) {
+    state->animByte2 = value;
+    state->spriteIndex = 0x08;
+    state->frame = 0;
+}
+
+void animationStateReset(State* state) {
+    byte tmp = state->spriteIndex & 0xc0 | 0x3;
+    state->animByte = 0;
+    enableAnimationState(state, tmp);
+}
+
+void sfxSetExplodeParam(State* state, byte param) {
+    explosionSfxParams = explosionSfxDefaults[param];
+}
+
+void explosionAfterKill() {
+    jetmanExplodingAnimState.x = jetmanState.x;
+    jetmanExplodingAnimState.y = jetmanState.y;
+    jetmanExplodingAnimState.animByte = 1;
+    enableAnimationState(&jetmanExplodingAnimState, jetmanState.spriteIndex);
+}
+
+void alienCollisionAnimSfx(State* state) {
+    animationStateReset(state);
+    sfxSetExplodeParam(state, 1);
+    explosionAfterKill();
 }
 
 void do_updateRocketColor(State* state, byte counter){
@@ -501,7 +646,7 @@ void meteorUpdate(void){
     if(jetmanPlatformCollision(cur) & 0x4) {
         // MeteorUpdate2
     } else {
-        if(laserBeamFire(cur) == 0){
+        if(laserBeamFire(cur) != 0){
             // increase score and display: MeteorUpdate1
             addPointsToScore(25);
         } else {

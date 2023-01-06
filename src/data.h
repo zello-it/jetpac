@@ -98,6 +98,7 @@ typedef struct {
         enum RMType type;
         byte funIndex;
         byte utype;
+        byte spriteIndex;
     };
     byte x;
     byte y;
@@ -110,10 +111,12 @@ typedef struct {
     union {
         byte xspeed;
         byte fuelCollected;
+        byte animByte;
     };
     union {
         byte yspeed;
         byte jumpTableOffset;
+        byte animByte2;
     };
     byte height;
 } State;
@@ -139,6 +142,7 @@ typedef struct {
     byte duration;
 } SoundData;
 extern SoundData explosionSfxParams;
+extern SoundData explosionSfxDefaults[];
 
 extern State rocketState;
 extern State rocketModuleState;
@@ -206,16 +210,18 @@ extern byte playerLives;
 extern byte inactivePlayerLevel;
 extern byte inactivePlayerLives;
 
+
 typedef struct {
-    byte header;
+    byte xoffset;
     byte width;
     byte height;
-    byte pixel[0x30];
-} Buffer;
+    byte* data;
+} Sprite;
 
-extern Buffer bufferAliensRight[2];
-extern Buffer bufferAliensLeft[2];
-extern Buffer bufferItem[4];
+extern Sprite bufferAliensRight[2];
+extern Sprite bufferAliensLeft[2];
+extern Sprite bufferItems[4];
+extern byte buffers[8][0x30];
 
 typedef struct {
     byte color;
@@ -242,12 +248,6 @@ typedef struct {
 
 extern Message menuCopyright;
 
-typedef struct {
-    byte xoffset;
-    byte width;
-    byte height;
-    byte* data;
-} Sprite;
 
 typedef struct {
     byte height;
@@ -260,7 +260,7 @@ extern byte tilePlatformMiddle[];
 extern byte tilePlatformRight[];
 
 extern Sprite* collectibleSpriteTable[];
-extern Sprite* jetmanSpriteTable[];
+extern Sprite* spriteTable[];
 extern AlienSprite* alienSpriteTable[];
 extern Sprite* explosionSpriteTable[];
 extern byte itemLevelObjectTypes[8];
