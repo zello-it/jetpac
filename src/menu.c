@@ -54,6 +54,11 @@ void menuDrawEntries(){
      for(int i = 0; i < array_sizeof(menuEntries); ++i) {
         menuDrawEntry(i);
     }
+    textOutAttrib(
+        (Coords){.x = 0x00, .y = 0xb8},
+        menuCopyright.msg,
+        (Attrib){.attrib = menuCopyright.attrib}
+    );
 }
 
 void check1_4() {

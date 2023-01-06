@@ -216,21 +216,26 @@ void levelNew(void) {
     levelInit();
 }
 
-void waitTick() {
+bool checkTick() {
     static word tick = 0;
-    word newtick;
-    do{
-        checkTermination();
-        newtick = getGameTime();
+    bool ticked = false;
+    word newtick = getGameTime();
+    checkTermination();
+    usleep(100); // rallentiamo il gioco
+    if(tick != newtick) {
+        tick = newtick;
+        ticked = true;
     }
-    while(tick == newtick);
-    tick = newtick;
+    return ticked;
 }
 
 void mainLoop(void) {
     while(true) {
-        waitTick();
-        byte funToCall = states[currentState]->utype;
+        if(checkTick())
+        {
+            gamePlayStarts();
+        }
+        byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
         funToCall &= 0x1f;
@@ -283,6 +288,9 @@ void resetScreen(void){
     showScore(8, 1, p1Score);
     showScore(8, 25, p2Score);
     showScore(8, 13, hiScore);
+    for(int col = 0; col < 0x20; ++col) {
+        setAttrib(col, 1, (Attrib){.attrib = 0x46});
+    }
 }
 
 void startGame(void) {
@@ -681,7 +689,7 @@ void rocketUpdate(void){
         ++rocketState.utype;
         actorUpdatePosDir(&jetmanState);
         actorFindDestroy(&jetmanState);
-        jetmanState.utype = 0;
+        jetmanState.spriteIndex = 0;
         ++playerLives;
         displayAllPlayerLives();
     }

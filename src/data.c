@@ -102,7 +102,7 @@ SoundData explosionSfxDefaults[] = {
 
 Message menuCopyright = {
     .attrib = 0x47,
-    .msg = "@ 1983 A.C.G. ALL RIGHTS RESERVED"
+    .msg = "@1983 A.C.G. ALL RIGHTS RESERVED"
 };
 
 byte jetman_fly_right1_data[] = {

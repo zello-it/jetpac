@@ -8,6 +8,7 @@ typedef int8_t sbyte;
 typedef uint16_t word;
 #define array_sizeof(n) (sizeof(n)/sizeof(n[0]))
 
+
 // utils
 static inline sbyte byteAbs(sbyte b) {
     return(b < 0 ? -b : b);
