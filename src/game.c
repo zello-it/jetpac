@@ -278,7 +278,7 @@ void resetScreen(void){
     textOutAttrib((Coords){.x = 120,.y = 0}, "HI", (Attrib){.attrib = 0x45});
     textOutAttrib((Coords){.x = 216, .y = 0}, "2UP", (Attrib){.attrib = 0x47});
     for(byte row = 0; row < 32; ++ row) {
-        setAttrib(1, row, (Attrib){.attrib = 0x46});
+        setAttrib(row, 1, (Attrib){.attrib = 0x46});
     }
     showScore(8, 1, p1Score);
     showScore(8, 25, p2Score);
@@ -333,11 +333,11 @@ void gamePlayStarts(void){
 }
 
 
-Coords getSpritePosition(Sprite* sprite, ActorTempState* buf) {
+Coords getSpritePosition(Sprite* sprite, Coords coords) {
     Coords ret;
-    ret.x = sprite->xoffset + buf->coords.x;
-    ret.y = buf->coords.y;
-    buf->height = sprite->height;
+    ret.x = sprite->xoffset + coords.x;
+    ret.y = coords.y;
+    actor.height = sprite->height;
     return ret;
 }
 
@@ -350,11 +350,10 @@ void do_maskSprite(byte* spritedata, Coords coords, byte height, byte width) {
             for(byte b = 0; b < width; ++b) {
                 byte d = ~(*ptr++);
                 byteOut(c, d, AND);
-                if(++c.x == 32)
-                    c.x = 0;
+                c.x += 8;
             }
             c.x = coords.x; 
-            --c.y;
+            if(--c.y > 192) c.y = 191;
         }
     }
 }
@@ -375,13 +374,17 @@ Sprite* actorGetSpriteAddress(byte x, byte header) {
 }
 
 Sprite* actorFindPosDir(void) {
-    return actorGetSpriteAddress(actor.x, actor.movement);
+    return actorGetSpriteAddress(actor.x & 0x06, actor.spriteIndex);
 }
 
+/**
+ * Update actor tmp buffer with position and sprite index of the 
+ * current object
+*/
 void actorUpdatePosDir(State* cur) {
     actor.x = cur->x;
     actor.y = cur->y;
-    actor.direction = cur->direction;
+    actor.spriteIndex = cur->spriteIndex;
 }
 
 void actorEraseDestroyed(State* state, Sprite* sprite, Coords coords) {
@@ -393,7 +396,7 @@ void actorEraseDestroyed(State* state, Sprite* sprite, Coords coords) {
 
 Coords actorFindDestroy(State* state){
     Sprite* sprite = actorFindPosDir();
-    Coords coords = getSpritePosition(sprite, &actor);
+    Coords coords = getSpritePosition(sprite, actor.coords);
     actorEraseDestroyed(state, sprite, coords);
     return coords;
 }
@@ -441,7 +444,7 @@ void actorEraseMovedSprite(State* state, Sprite* sprite, Coords coords) {
 }
 
 void actorUpdatePosition(State* state, Sprite* sprite) {
-    Coords coords = getSpritePosition(sprite, &actor);
+    Coords coords = getSpritePosition(sprite, actor.coords);
     actorUpdate(state, sprite);
     actorEraseMovedSprite(state, sprite, coords);
 }
@@ -456,6 +459,7 @@ Sprite* findActorSpriteAndUpdate(State* state) {
 void updateAndEraseActor(State* state) {
     Sprite* s = findActorSpriteAndUpdate(state);
     Sprite* spriteActor = actorFindPosDir();
+    Coords act = getSpritePosition(spriteActor, actorCoords);
     actorEraseMovedSprite(state, spriteActor, actorCoords);
 }
 
@@ -480,8 +484,8 @@ void colorizeSprite(State* state) {
    Attrib a = {.attrib = state->color};
    for(byte w = 0; w < actor.width; ++w ) {
     byte col = (actorCoords.x + w) / 8;
-    for(byte h = 0; h < actor.height; ++h) {
-        setAttrib(col, actorCoords.y - h, a);
+    for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
+        setAttrib(col, (actorCoords.y - h) / 8, a);
     }
    } 
 }
@@ -558,7 +562,7 @@ byte laserBeamFire(State* state) {
 
 void enableAnimationState(State* state, byte value) {
     state->animByte2 = value;
-    state->spriteIndex = 0x08;
+    state->spriteIndex = Animating;
     state->frame = 0;
 }
 
@@ -595,19 +599,19 @@ void do_updateRocketColor(State* state, byte counter){
 void updateRocketColor(State* state) {
     byte base = (playerLevel / 2) & 3;
     byte offset = 0;
-    Coords coords;
+    Coords coords = {.x = state->x, .y = state->y};
     for(byte b = 0; b < state->frame; --b) {
         byte idx = base | offset;
         Sprite* sprite = collectibleSpriteTable[idx];
-        coords = getSpritePosition(sprite, &actor);
+        //coords = getSpritePosition(sprite, actorCoords);
         actorUpdatePosition(state, sprite);
         state->y -= 0x10;
         actor.y -= 0x10;
-        offset += 4;
+        offset += 2; // era 4, ma si trattava di words
     }
     actor.width = 2;
     actor.height = 0;
-    state->y = coords.y; // not sure, line 1710 of asm
+    state->y = coords.y; 
     actorCoords = coords;
     Attrib attr;
     byte counter;
@@ -634,10 +638,10 @@ void meteorUpdate(void){
     ++currentAlienNumber;
     byte x = cur->x;
     if((cur->frame & 0x40) != 0){
-        x += cur->xspeed;
+        x -= cur->xspeed;
     }
     else{
-        x -= cur->xspeed;
+        x += cur->xspeed;
     }
     cur->x = x;
     cur->y += cur->yspeed;
@@ -645,6 +649,8 @@ void meteorUpdate(void){
     colorizeSprite(cur);
     if(jetmanPlatformCollision(cur) & 0x4) {
         // MeteorUpdate2
+        animationStateReset(cur);
+        sfxSetExplodeParam(cur, 0);
     } else {
         if(laserBeamFire(cur) != 0){
             // increase score and display: MeteorUpdate1
@@ -669,9 +675,9 @@ void rocketUpdate(void){
     actorUpdatePosDir(cur);
     // to do
     if(alienCollision(cur) || rocketState.fuelCollected < 6) {
-        updateRocketColor(states[currentState]);
+        updateRocketColor(cur);
     }
-    else {
+    else { // level finished
         ++rocketState.utype;
         actorUpdatePosDir(&jetmanState);
         actorFindDestroy(&jetmanState);

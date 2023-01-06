@@ -122,7 +122,7 @@ byte charset[][8] = {
 
 
 // buffers
-byte video[192][256 >> 3];
+byte video[192][32];
 Attrib attribs[24][32];
 Color zxcolors[2][8] = {
     {
@@ -159,6 +159,15 @@ void swapColors(Color* one, Color* two){
     *two = tmp;
 }
 
+static inline void writeVideo(byte xcol, byte yline, byte what) {
+	assert(xcol < 32 && yline < 192);
+	video[yline][xcol] = what;
+}
+static inline void writeAttrib(byte xcol, byte yrow, Attrib what) {
+	assert(xcol < 32 && yrow < 24);
+	attribs[yrow][xcol] = what;
+}
+
 void drawByte(byte col, byte row, Color ink, Color paper) {
     byte line = video[row][col];
 	//printf("print %d - %d\n", row, col);
@@ -177,7 +186,7 @@ static Colors internal_getAttrib(byte col, byte row) {
     Colors ret;
     ret.ink = zxcolors[curr.bright][curr.ink];
     ret.paper = zxcolors[curr.bright][curr.paper];
-    if(curr.flash && ((getMillis()/500) & 1)) {
+    if(curr.flash && ((getMillis()/320) & 1)) {
         swapColors(&ret.ink, &ret.paper);
     }
     return ret;
@@ -243,11 +252,11 @@ void clearScreen(Attrib attrib){
 
 void do_SquareOut(Coords coords, const byte* ptr) { //unlocked version
 	for(int i = 0; i < 8; ++i) {
-		video[coords.y + i][coords.x / 8] = ptr[i];
+		writeVideo(coords.x /8, coords.y + i, ptr[i]);
 	}
 }
 void do_SquareOutAttrib(Coords coords, const byte* ptr, Attrib attr) {
-	attribs[coords.y / 8][coords.x / 8].attrib = attr.attrib;
+	writeAttrib(coords.x / 8, coords.y / 8, attr);
 	do_SquareOut(coords, ptr);
 }
 
@@ -279,7 +288,7 @@ void textOut(Coords coords, const char* ptr){
 
 void setAttrib(byte col, byte row, Attrib attr) {
     pthread_mutex_lock(&video_mutex);
-    attribs[row][col].attrib = attr.attrib;
+	writeAttrib(col, row, attr);
     pthread_mutex_unlock(&video_mutex);
 }
 
@@ -297,25 +306,27 @@ void squareOut(Coords coords, const byte* ptr, Attrib attr) {
 }
 
 void byteOut(Coords coords, const byte byte1, enum Operator op) {
+	assert(coords.y < 192);
 	pthread_mutex_lock(&video_mutex);
-	byte* b = &video[coords.y][coords.x / 8];
+	byte b = video[coords.y][coords.x / 8];
 	switch(op) {
 		case EQUAL:
-			*b = byte1;
+			b = byte1;
 			break;
 		case OR:
-			*b |= byte1;
+			b |= byte1;
 			break;
 		case AND:
-			*b &= byte1;
+			b &= byte1;
 			break;
 		case XOR:
-			*b ^= byte1;
+			b ^= byte1;
 			break;
 		default:
 			assert(0);
 			break;
 	}
+	writeVideo(coords.x / 8, coords.y, b);
 	pthread_mutex_unlock(&video_mutex);
 }
 

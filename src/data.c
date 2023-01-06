@@ -581,38 +581,38 @@ Sprite bufferItems[4] = {
 };
 
 Sprite* spriteTable[] = {
-    &jetman_fly_right1,
+    &jetman_fly_right1,       // 0
     &jetman_fly_right2,
     &jetman_fly_right3,
     &jetman_fly_right4,
-    &jetman_fly_left4,        // 5
+    &jetman_fly_left4,        // 4  
     &jetman_fly_left3,
     &jetman_fly_left2,
     &jetman_fly_left1,
-    &jetman_walk_right1,
-    &jetman_walk_right2,      //10
+    &jetman_walk_right1,      //8
+    &jetman_walk_right2,      
     &jetman_walk_right3,
     &jetman_walk_right4,
-    &jetman_walk_left4,
+    &jetman_walk_left4,       //12
     &jetman_walk_left3,
     &jetman_walk_left2,       
-    &jetman_walk_left1,        //16
-    &bufferAliensRight[0],
+    &jetman_walk_left1,        
+    &bufferAliensRight[0],    //16
     &bufferAliensRight[0],
     &bufferAliensRight[1],
     &bufferAliensRight[1],
-    &bufferAliensLeft[1],
+    &bufferAliensLeft[1],     //20
     &bufferAliensLeft[1],
     &bufferAliensLeft[0],
     &bufferAliensLeft[0],
-    &bufferItems[0],
+    &bufferItems[0],          //24
     &bufferItems[1],
     &bufferItems[2],
     &bufferItems[3],
-    &bufferItems[3],
+    &bufferItems[3],          //28
     &bufferItems[2],
     &bufferItems[1],
-    &bufferItems[0]
+    &bufferItems[0]           //31
 };
 AlienSprite* alienSpriteTable[] = {
     &meteor1,

@@ -96,7 +96,6 @@ typedef struct {
         enum Animating animating;
         Direction direction;
         enum RMType type;
-        byte funIndex;
         byte utype;
         byte spriteIndex;
     };
@@ -171,7 +170,7 @@ typedef struct {
     };
     union {
         Direction direction;
-        byte movement;
+        byte spriteIndex;
     };
     byte height; //pix
     byte width;  //tiles
