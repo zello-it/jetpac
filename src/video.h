@@ -40,3 +40,4 @@ void playSound(byte pitch, byte duration);
 
 word getGameTime();
 void resetGameTime();
+void gameSleep(int millis);

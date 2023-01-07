@@ -326,6 +326,7 @@ void byteOut(Coords coords, const byte byte1, enum Operator op) {
 			assert(0);
 			break;
 	}
+	//printf("Writing %x at %d %d\n", b, coords.x, coords.y);
 	writeVideo(coords.x / 8, coords.y, b);
 	pthread_mutex_unlock(&video_mutex);
 }
@@ -340,4 +341,8 @@ void resetGameTime() {
 
 void playSound(byte pitch, byte duration){
 
+}
+
+void gameSleep(int millis) {
+	usleep(millis * 1000);
 }
