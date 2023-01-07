@@ -13,7 +13,7 @@ typedef uint16_t word;
 static inline sbyte byteAbs(sbyte b) {
     return(b < 0 ? -b : b);
 }
-static inline sbyte sgn(sbyte b) {
+static inline sbyte byteSgn(sbyte b) {
     return (b > 0) - (0 > b);
 }
 
@@ -23,11 +23,15 @@ static inline void swap(byte* one, byte* two) {
     *two = tmp;
 }
 
+static inline byte byteRand() {
+    return (byte)(rand());
+}
+
 static inline char* numToChar(int num) {
     char* ret = NULL;
     size_t sz = 0;
     sz = snprintf(ret, sz, "%d", num) + 1;
-    ret = malloc(sz);
+    ret = malloc(sz);playersSwaprocket_state:
     snprintf(ret, sz, "%d", num);
     return ret;
 }
@@ -79,10 +83,11 @@ enum RMType {
     RMCollectible = 0xe
 };
 enum RMState {
-    New = 1,
-    Collected = 3,
-    FreeFall = 5,
-    Dropped = 7
+    Free = 1,
+    Carrying = 2,
+    Pickup = 4,
+ //   FreeFall = 5,
+ //   Dropped = 7
 };
 
 enum Animating {
@@ -107,6 +112,7 @@ typedef struct {
         Moving moving;
         enum RMState state;
         byte frame;
+        byte umoving;
     };
     union {
         byte xspeed;
@@ -116,7 +122,7 @@ typedef struct {
     union {
         byte yspeed;
         byte jumpTableOffset;
-        byte animByte2;
+        byte oldSpriteIndex;
     };
     byte height;
 } State;
@@ -169,10 +175,7 @@ typedef struct {
             byte y;
         };
     };
-    union {
-        Direction direction;
-        byte spriteIndex;
-    };
+    byte spriteIndex;
     byte height; //pix
     byte width;  //tiles
     byte spriteHeight;
@@ -181,7 +184,7 @@ typedef struct {
 } ActorTempState;
 
 extern ActorTempState actor;
-
+extern byte jetmanFlyCounter;
 extern byte alienNewDirFlag;
 
 extern byte jetmanSpeedModifier;
@@ -265,3 +268,4 @@ extern AlienSprite* alienSpriteTable[];
 extern Sprite* explosionSpriteTable[];
 extern byte itemLevelObjectTypes[8];
 extern byte itemDropPositionTable[];
+extern byte laserBeamColors[];

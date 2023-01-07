@@ -1,8 +1,9 @@
 #include "data.h"
 #include "menu.h"
 #include "video.h"
+#include "keyboard.h"
 #include <stdbool.h>
-#include <raylib.h>
+
 
 static struct {
     byte line;
@@ -62,21 +63,21 @@ void menuDrawEntries(){
 }
 
 void check1_4() {
-    if(IsKeyPressed(KEY_ONE)){
+    if(isKeyPressed(keyOne)){
        gameOptions.players = 0;
     }
-    else if(IsKeyPressed(KEY_TWO)) {
+    else if(isKeyPressed(keyTwo)) {
         gameOptions.players = 1;
     }
-    if(IsKeyPressed(KEY_THREE)) {
+    if(isKeyPressed(keyThree)) {
         gameOptions.input = 0;
-    } else if(IsKeyPressed(KEY_FOUR)) {
+    } else if(isKeyPressed(keyFour)) {
         gameOptions.input = 1;
     }
 }
 
 bool check5(void) {
-    return(IsKeyPressed(KEY_FIVE));
+    return(isKeyPressed(keyFive));
 }
 
 void menuScreen(void) {

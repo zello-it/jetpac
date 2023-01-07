@@ -32,11 +32,11 @@ byte playerLevel;
 byte playerLives;
 byte inactivePlayerLevel;
 byte inactivePlayerLives;
+byte jetmanFlyCounter;
 
 State padding = {0, 0, 0, 0, 0, 0, 0, 0};
 // state array
 State* states[] = {
-  // &jetmanState,
    &rocketState,                 //0
    &rocketModuleState,           //1
    &itemState,                   //2
@@ -72,8 +72,8 @@ State defaultPlayerState = {
     .utype = 0x01, 0x80, 0xb7, 0x47, .frame = 0x00, 0x00, 0x00, 0x24
 };
 State defaultRocketState[] = {
-  {.utype = 0x09,0xa8,0xb7,0x02,.frame = 0x01,0x00,0x00,0x1c}, // Rocket state
-  {.utype = 0x04,0x30,0x47,0x47,.frame = 0x00,0x00,0x10,0x18}, // Top module state
+  {.utype = 0x09,0xa8,0xb7,0x02,.frame = 0x01,0x00,0x00,0x1c}, // Rocket mounted (base)
+  {.utype = 0x04,0x30,0x47,0x47,.frame = 0x01,0x00,0x10,0x18}, // Top module state
   {.utype = 0x04,0x80,0x5f,0x47,.frame = 0x01,0x00,0x08,0x18} // Middle module state  
 };
 State defaultRocketModuleState = {
@@ -98,6 +98,10 @@ byte itemDropPositionTable[] = {
 SoundData explosionSfxDefaults[] = {
    {0x0c, 0x04},
    {0x0d, 0x04}
+};
+
+byte laserBeamColors[] = {
+   0x47, 0x43, 0x43, 0x45
 };
 
 Message menuCopyright = {
@@ -593,26 +597,26 @@ Sprite* spriteTable[] = {
     &jetman_walk_right2,      
     &jetman_walk_right3,
     &jetman_walk_right4,
-    &jetman_walk_left4,       //12
+    &jetman_walk_left4,       //0c 12
     &jetman_walk_left3,
     &jetman_walk_left2,       
     &jetman_walk_left1,        
-    &bufferAliensRight[0],    //16
+    &bufferAliensRight[0],    //10 16
     &bufferAliensRight[0],
     &bufferAliensRight[1],
     &bufferAliensRight[1],
-    &bufferAliensLeft[1],     //20
+    &bufferAliensLeft[1],     //14 20
     &bufferAliensLeft[1],
     &bufferAliensLeft[0],
     &bufferAliensLeft[0],
-    &bufferItems[0],          //24
+    &bufferItems[0],          //18 24
     &bufferItems[1],
     &bufferItems[2],
     &bufferItems[3],
-    &bufferItems[3],          //28
+    &bufferItems[3],          //1c 28
     &bufferItems[2],
     &bufferItems[1],
-    &bufferItems[0]           //31
+    &bufferItems[0]           //1f 31
 };
 AlienSprite* alienSpriteTable[] = {
     &meteor1,

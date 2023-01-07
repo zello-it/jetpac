@@ -2,11 +2,12 @@
 #include "data.h"
 #include "video.h"
 #include "menu.h"
+#include "keyboard.h"
 #include <stdbool.h>
-#include <strings.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <raylib.h> //for keyboard, could be abstracted
+
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
@@ -52,8 +53,15 @@ Fun mainJumpTable[] = {
     squidgyAlienUpdate
 };
 
+bool gameReset = false;
+byte flipped[256];
+
 void newActor(void);
 void resetScreen(void);
+void jetmanRedraw(State* cur);
+byte checkPlatformCollision(State* cur);
+void actorSaveSpritePos(State* state);
+
 void resetGlobals(void) {
     // zero all but high scores and controls
     //ZEROSTRUCT(gameOptions, GameOptions);
@@ -90,19 +98,42 @@ void resetGlobals(void) {
     bufferItems[2].data = buffers[6];
     bufferItems[3].data = buffers[7];
     bzero(buffers, sizeof(buffers));
+    jetmanFlyCounter = 0;
 }
 
-byte* writeThreeBytes(byte* what, byte* to, byte shift) {
+static inline void bin(byte s) {
+    char buf[9] = {0};
+    for(int i = 0; i < 8; ++i) {
+        buf[7 - i] = (s & (1 << i) ? '1' : '0');
+    }
+    buf[8] = '\0';
+    printf("%s", buf);
+}
+
+void dbgPrint(const char * arg, byte b) {
+    printf("%s ", arg);
+    bin(b);
+    printf("\n");
+}
+
+byte* writeThreeBytes(byte* what, byte* to, byte shift, byte flip) {
     byte b1, b2, b3;
     b1 = *what++;
     b2 = *what++;
     b3 = 0;
+
     while(shift--) {
-        byte rep = b1 & 1;
+        byte rep = (b1 & 1) << 7;
         b1 >>= 1;
-        byte rep2 = b2 & 1;
+        byte rep2 = (b2 & 1) << 7;
         b2 = (b2 >> 1) + rep;
         b3 = (b3 >> 1) + rep2;
+    }
+    if(flip) {
+        swap(&b1, &b3);
+        b1 = flipped[b1];
+        b2 = flipped[b2];
+        b3 = flipped[b3];
     }
     *to++ = b1;
     *to++ = b2;
@@ -110,25 +141,35 @@ byte* writeThreeBytes(byte* what, byte* to, byte shift) {
     return to;
 }
 
-void bufferCopy(byte* what, Sprite* where, byte height, byte shift) {
+void bufferCopy(byte* what, Sprite* where, byte height, byte shift, byte flipped) {
     where->xoffset = 0;
     where->width = 3;
     height = (height > 0x11 ? height : 0x10);
     where->height = height;
     byte* ptrto = where->data;
     while(height--) {
-        ptrto = writeThreeBytes(what, ptrto, shift);
+        ptrto = writeThreeBytes(what, ptrto, shift, flipped);
         what += 2;
     }
 }
 
-void bufferCopyRocket(void) {
+void bufferCopyRocket(byte arg) {
     // copia quattro volte lo stesso modulo?
-    Sprite* sprite = collectibleSpriteTable[4 + playerLevel / 4];
+    byte idx = ((playerLevel / 2) & 0x6 | arg) / 2;
     Sprite* dest = bufferItems;
+    rocketModAttached = 2;
+    jetmanRocketModConnected = 0;
     for(byte b = 0; b < 4; ++b) {
-        bufferCopy(sprite->data, dest + b, sprite->height, 0);
+        Sprite* sprite = collectibleSpriteTable[idx];
+        bufferCopy(sprite->data, dest + b, sprite->height, 0, false);
+        idx += 4;
     }
+}
+
+void updateHiScore(){
+    uint32_t maxscore = (p1Score > p2Score ? p1Score: p2Score);
+    if(hiScore < maxscore)
+        hiScore = maxscore;
 }
 
 void displayPlayerLives(byte numplayer) {
@@ -145,8 +186,8 @@ void displayPlayerLives(byte numplayer) {
 }
 
 void displayAllPlayerLives() {
-    displayPlayerLives(0);
-    displayPlayerLives(1);
+    displayPlayerLives(Player1);
+    displayPlayerLives(Player2);
 }
 
 void playerInit() {
@@ -178,18 +219,21 @@ void drawPlatforms() {
 }
 void alienBufferInit() {
     rocketModAttached = 4;
-    jetmanRocketModConnected = 0;
-    byte index = (playerLevel * 2) % 16;
+//    jetmanRocketModConnected = 0;
+    byte index = ((playerLevel * 4) & 0x1c) >> 1;
+    printf("Idx buffer is %d\n", index);
     for(byte b = 0; b < 2; ++b) {
-        AlienSprite* sprite = alienSpriteTable[index++];
+        AlienSprite* sprite = alienSpriteTable[index+b];
         Sprite* buf = &bufferAliensRight[b];
-        bufferCopy(sprite->data, buf, sprite->height, 0);
+        bufferCopy(sprite->data, buf, sprite->height, b * 4, false);
     }
+    jetmanRocketModConnected = 1;
     for(byte b = 0; b < 2; ++b) {
-        AlienSprite* sprite = alienSpriteTable[index++];
+        AlienSprite* sprite = alienSpriteTable[index+b];
         Sprite* buf = &bufferAliensLeft[b];
-        bufferCopy(sprite->data, buf, sprite->height, 0);
+        bufferCopy(sprite->data, buf, sprite->height, b * 4, true);
     }
+
 }
 
 void levelInit(void) {
@@ -204,7 +248,7 @@ void rocketReset() {
     rocketState = defaultRocketState[0];
     rocketModuleState = defaultRocketState[1];
     itemState = defaultRocketState[2];
-    bufferCopyRocket();
+    bufferCopyRocket(8);
 }
 
 void levelNew(void) {
@@ -221,7 +265,7 @@ bool checkTick() {
     bool ticked = false;
     word newtick = getGameTime();
     checkTermination();
-    gameSleep(1); // rallentiamo il gioco
+    gameSleep(5); // rallentiamo il gioco
     if(tick != newtick) {
         tick = newtick;
         ticked = true;
@@ -230,36 +274,51 @@ bool checkTick() {
 }
 
 void mainLoop(void) {
-    while(true) {
+    while(!gameReset) {
         if(checkTick())
         {
-            gamePlayStarts(&jetmanState);
+            mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
         }
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
         funToCall &= 0x1f;
+//        printf("Calling %d\n", funToCall);
 #endif
-        printf("Calling %d\n", funToCall);
         mainJumpTable[funToCall](states[currentState]);
         newActor();
     }
 }
 
-void newGame(void) {
-    srand(time(NULL));
-    playerLevel = 0;
-    playerLives = 4;JetmanPlatformCollision:
-    rocketReset();
-    inactivePlayerLevel = 0;
-    if(gameOptions.players) {
-        inactivePlayerLives = 5;
-    } else {
-        inactivePlayerLives = 0;
+void initFlipped() {
+    for(word b = 0; b < 256; ++b) {
+        byte res = 0;
+        for(byte bit = 0; bit < 8; ++bit){
+            res <<= 1;
+            res |= ((b & (1 << bit)) != 0);
+        }
+        flipped[b] = res;
     }
-    levelNew();
-    currentAlienNumber = 0;
-    mainLoop();
+}
+
+void newGame(void) {
+    initFlipped();
+    while(true) {
+        srand(time(NULL));
+        playerLevel = 0;
+        playerLives = 4;
+        rocketReset();
+        inactivePlayerLevel = 0;
+        if(gameOptions.players) {
+            inactivePlayerLives = 5;
+        } else {
+            inactivePlayerLives = 0;
+        }
+        levelNew();
+        currentAlienNumber = 0;
+        mainLoop();
+        gameReset = false;
+    }
 }
 
 void showScore(int line, int col, uint32_t score) {
@@ -274,7 +333,7 @@ void addPointsToScore(byte b) {
     *score += b;
     if(*score > 999999) 
         *score = 999999;
-    showScore(1, xpos[currentPlayerNumber], *score);
+    showScore(1, xpos[currentPlayerNumber ? 1 : 0], *score);
 }
 
 void resetScreen(void){
@@ -306,7 +365,162 @@ void frameRateLimiter(State* cur){
     // do nothing
 }
 
+void jetmanLands(State* cur) {
+    cur->moving.ud = 0;
+    cur->spriteIndex = (cur->spriteIndex & 0xc0) | 0x2;
+    cur->xspeed = 0;
+    cur->yspeed = 0;
+    jetmanRedraw(cur);
+}
+
+void jetmanCollision(State* cur) {
+    byte eRes = checkPlatformCollision(cur);
+    if(!(eRes & 0x4)){
+        jetmanRedraw(cur);
+        return;
+    }
+    if(eRes & 0x80) {
+        jetmanLands(cur);
+        return;
+    }
+    if(eRes & 0x10) {
+        cur->moving.ud = 1;
+        jetmanRedraw(cur);
+        return;
+    }
+    eRes = (eRes ^ 0x40) & 0x40;
+    cur->umoving = (cur->umoving & 0xbf | eRes);
+    jetmanRedraw(cur);
+}
+
+void jetmanFlyVertical(State* cur) {
+    word speedy = 3 * cur->yspeed;
+    word offset = ((word)(cur->y) << 8) | jetmanFlyCounter;
+    if(cur->moving.ud)
+        speedy += offset;
+    else
+        speedy = offset - speedy;
+    jetmanFlyCounter = (byte) speedy;
+    cur->y = (speedy >> 8) & 0xff;
+    if(cur->y >= 0xc0){ 
+        cur->moving.ud = 0;
+    } else if(cur->y < 0x2a) {
+        cur->moving.ud = 1;
+        byte a = cur->yspeed << 1;
+        if(a) {
+            cur->yspeed = a;
+        }
+    }
+    jetmanCollision(cur);
+}
+
+void jetmanDirFlipY(State* cur) {
+    sbyte speed = jetmanSpeedModifier - 8 + cur->yspeed;
+    if(speed >= 0) {
+        cur->yspeed = speed;
+    } else {
+        cur->yspeed = 0;
+        cur->moving.ud = ~cur->moving.ud;
+    }
+    jetmanFlyVertical(cur);
+}
+
+void jetmanFlyHorizontal(State* cur) {
+    word xspeed = cur->xspeed * 3;
+    word xpos = (cur->x << 8) | actor.flyingMovement;
+    if(cur->moving.rl) {
+        xpos -= xspeed;
+    } else {
+        xpos += xspeed;
+    }
+    actor.flyingMovement = (byte) (xpos & 0x00ff);
+    cur->x = (byte)((xpos & 0xff00) >> 8);
+    if(readInputHover() == Hover) {
+        cur->yspeed = 0;
+        jetmanFlyVertical(cur);
+    }
+    if(readInputThrust() == Thrust) {
+        //    jetmanSetMoveDown(cur);
+        cur->spriteIndex |= 0x80;
+        if(cur->moving.ud) {
+            //jetmanSpeedIncY
+            sbyte speed = 8 - jetmanSpeedModifier + cur->yspeed;
+            if(speed > 0x3f) speed = 0x3f;
+            cur->yspeed = speed;
+            jetmanFlyVertical(cur);
+        } else {
+            jetmanDirFlipY(cur);
+        }
+    } else {
+        cur->spriteIndex &= ~0x80;
+        if(cur->moving.ud) {
+            jetmanDirFlipY(cur);
+            return;
+        }
+        sbyte yspeed = 0x8 - jetmanSpeedModifier + cur->yspeed;
+        if(yspeed > 0x3f){
+            yspeed = 0x3f;
+        }
+        cur->yspeed = yspeed;
+        jetmanFlyVertical(cur);
+    }
+}
+
+void jetmanDirFlipX(State* cur) {
+    sbyte xspeed = jetmanSpeedModifier - 0x8 + cur->xspeed;
+    if(xspeed < 0) {
+        cur->xspeed = 0;
+        cur->moving.rl = ~cur->moving.rl;
+    } else {
+        cur->xspeed = xspeed;
+    }
+    jetmanFlyHorizontal(cur);
+}
+void jetmanFlyIncSpdX(State* cur) {
+    sbyte xspeed = -jetmanSpeedModifier;
+    xspeed += (0x8 + cur->xspeed);
+    if(xspeed > 0x40) xspeed = 0x40;
+    cur->xspeed =xspeed;
+    jetmanFlyHorizontal(cur);
+}
+
 void jetmanFlyThrust(State* cur) {
+    actorSaveSpritePos(cur);
+    enum KeyboardResult res = readInputLR();
+    switch(res) {
+        case Right:
+            cur->spriteIndex &= ~0x40;
+            if(cur->moving.rl){
+                jetmanDirFlipX(cur);
+            } else {
+                jetmanFlyIncSpdX(cur);
+            }
+            return;
+        case Left:
+            cur->spriteIndex |= 0x40;
+            if(cur->moving.rl) {
+                jetmanFlyIncSpdX(cur);
+            } else {
+                jetmanDirFlipX(cur);
+            }
+            return;
+
+        case None:
+            {
+                if(!(getGameTime() & 0x1)) {
+                    jetmanFlyHorizontal(cur);
+                } else {
+                    sbyte speed = jetmanSpeedModifier - 8 + cur->xspeed;
+                    if(speed < 0) {
+                        speed = 0;
+                    }
+                    cur->xspeed = speed;
+                    jetmanFlyHorizontal(cur);
+                }
+            }
+        default:
+            break; // to skip a warning, it's unreacheable code...
+    }
 }
 
 void sfxPickupItem() {
@@ -340,57 +554,72 @@ void gamePlayStarts(State* cur){
         jetmanFlyThrust(cur);
 }
 
+Coords actorUpdate(State* state, Sprite* sprite) {
+    actorCoords = (Coords) {.x = state->x + sprite->xoffset, .y = state->y};
+    actor.width = sprite->width;
+    actor.gfxDtaHeight = actor.height = sprite->height;
+    return actorCoords;
+}
 
 Coords getSpritePosition(Sprite* sprite, Coords coords) {
     Coords ret;
     ret.x = sprite->xoffset + coords.x;
     ret.y = coords.y;
-    actor.height = sprite->height;
+    actor.spriteHeight = sprite->height;
     return ret;
 }
 
-void maskSprite(byte* spritedata, Coords coordsold, Coords coordsnew, byte maskheight, byte spriteheight, byte width) {
-    if(!maskheight && !spriteheight)
-        return;
-    if(coordsold.x != coordsnew.x || coordsold.y != coordsnew.y)
-        printf("Hit\n");
-    byte* ptr = spritedata;
-    if(maskheight) {
-        byte y = coordsold.y;
-        while(maskheight--) {
-            for(byte col = 0; col < width; ++col) {
-                byteOut((Coords){.x = coordsold.x + 8 * col, .y = y}, ~(*ptr++), AND);
-            }
-            --y;
-            if(y > 191) y = 191;
-        }
-    }
-    if(spriteheight) {
-        ptr = spritedata;
-        byte y = coordsnew.y;
-        while(spriteheight--) {
-            for(byte col = 0; col < width; ++col){
-                byteOut((Coords){.x = coordsnew.x + 8 * col, .y = y}, *ptr++, OR);
-            }
-            --y;
-            if(y > 191) y = 191;
-        }
-    }
+typedef struct {
+    byte* spritedata;
+    Coords coords;
+    byte height;
+    byte width; // should be constant
+} SpriteData;
 
+void writeSprite(SpriteData* sd, enum Operator op) {
+    while(sd->height--) {
+        for(byte col = 0; col < sd->width; ++col) {
+            byte out = *sd->spritedata++;
+            if(op == AND)
+                out = ~out;
+            byteOutNoLock(
+                (Coords){.x = sd->coords.x + 8 * col, .y = sd->coords.y},
+                out,
+                op
+            );
+        }
+        --sd->coords.y;
+        if(sd->coords.y > 191)
+            sd->coords.y = 191;
+    }
 }
 
-Sprite* actorGetSpriteAddress(byte x, byte header) {
-    if(header & 0x40) {
-        x |= 0x8;
+void maskSprite(SpriteData* maskSprite, SpriteData* newSprite) {
+    // printf("******\n");
+    // if(maskSprite)
+    //     printf("Deleting @%d, %d h = %d\n", maskSprite->coords.x, maskSprite->coords.y, maskSprite->height);
+    // if(newSprite)
+    //     printf("Writing @%d, %d h = %d\n", newSprite->coords.x, newSprite->coords.y, newSprite->height);
+    // printf("******\n");
+    lockVideo();
+    if(maskSprite && maskSprite->height) {  
+        writeSprite(maskSprite, AND);
+    }
+    if(newSprite && newSprite->height) {
+        writeSprite(newSprite, OR);
+    }
+    unlockVideo();
+}
+
+Sprite* getSpriteAddress(byte x, byte header) {
+    if(header & 0x40) {  // maybe 0x20... Qui entra x come offset. I bytes alti escono 
+        x |= 0x8;        // per effetto dello shift (o del rlca maskato con f0)
     }
     --header;
-    byte index = (header << 4) & 0xf0 | x;
+    byte index = (header << 4) | x; // il mask (& 0xf0) non serve, non stiamo ruotando
     index >>= 1; // word to index
+//    printf("Asking for %x, returned %d\n", header, index);
     return spriteTable[index];
-}
-
-Sprite* actorFindPosDir(void) {
-    return actorGetSpriteAddress(actor.x & 0x06, actor.spriteIndex);
 }
 
 /**
@@ -405,78 +634,100 @@ void actorSaveSpritePos(State* cur) {    //actorUpdatePosDir
 
 void actorEraseDestroyed(State* state, Sprite* sprite, Coords coords) {
     byte c = actor.height;
-    actor.spriteHeight = 0;
+    actor.gfxDtaHeight = 0;
     actor.height = 0;
-    maskSprite(sprite->data, coords, (Coords){0}, c, 0, actor.width);
+    SpriteData sd = {
+        .spritedata = sprite->data,
+        .coords = coords,
+        .height = c,
+        .width = actor.width
+    };
+    maskSprite(&sd, NULL);
 }
 
 Coords actorFindDestroy(State* state){
-    Sprite* sprite = actorFindPosDir();
+    Sprite* sprite = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
     Coords coords = getSpritePosition(sprite, actor.coords);
     actorEraseDestroyed(state, sprite, coords);
     return coords;
 }
 
-void actorUpdate(State* state, Sprite* sprite) {
-    actorCoords.x = state->x + sprite->xoffset;
-    actorCoords.y = state->y;
-    actor.width = sprite->width;
-    actor.height = actor.spriteHeight = sprite->height;
-}
 
-byte updateSprite(Sprite* sprite, Coords oldcoords){ //updateSprite
-    byte ret = actor.height;
-    byte spriteHeight = actor.spriteHeight;
-    if(!ret&& !spriteHeight)
-        return ret;
-    actor.height = 0;
-    actor.spriteHeight = 0;
-    maskSprite(sprite->data, oldcoords, actor.coords, ret, spriteHeight, actor.width); // this will recall into updateSprite...
-    return ret;
-}
-
-void actorEraseMovedSprite(State* state, Sprite* sprite, Coords coords) {
-    sbyte diff = actor.y - state->y;
-    if(diff == 0) {
-        updateSprite(sprite, coords);
-        return;
-    }
-    if(diff > 0) {
-        if(actor.height > diff) {
-            updateSprite(sprite, coords);
-            return;
-        }
-        actor.height -= diff;
-        maskSprite(sprite->data, actor.coords, coords, diff, actor.height, actor.width);
-    } else {
+void actorEraseMovedSprite(SpriteData* oldSprite, SpriteData* newSprite) {
+    sbyte diff = oldSprite->coords.y - newSprite->coords.y;
+    bool b = false;
+    switch(byteSgn(diff)) {
+    case 0:
+        oldSprite->height = actor.gfxDtaHeight;
+        actor.spriteHeight = actor.gfxDtaHeight = 0;
+        maskSprite(oldSprite, newSprite);
+        break;
+    case -1:
         diff = byteAbs(diff);
-        if(actor.spriteHeight < diff)
-            updateSprite(sprite, coords);
-        else{
-            actor.spriteHeight -= diff;
-            maskSprite(sprite->data, actor.coords, coords, diff, actor.spriteHeight, actor.width);
+        if(actor.gfxDtaHeight < diff) {
+            newSprite->height = diff;
+            oldSprite->height = actor.gfxDtaHeight;
+            actor.spriteHeight = actor.gfxDtaHeight = 0;
+            maskSprite(oldSprite, newSprite);
+        } else {
+            actor.gfxDtaHeight = actor.gfxDtaHeight - diff;
+            maskSprite(oldSprite, newSprite);
         }
-    }
+        break;
+        //b = true;
+        //fallthrough
+    case 1: 
+        if(actor.gfxDtaHeight < diff) {
+            oldSprite->height = diff;
+            actor.gfxDtaHeight = actor.gfxDtaHeight = 0;    
+            maskSprite(oldSprite, newSprite);
+        } else {
+            actor.spriteHeight -= diff;
+            oldSprite->height = diff;
+            maskSprite(oldSprite, newSprite);
+        }
+         break;
+    } // end switch
 }
 
 void actorUpdatePosition(State* state, Sprite* sprite) {
     Coords oldcoords = getSpritePosition(sprite, actor.coords);
     actorUpdate(state, sprite);
-    actorEraseMovedSprite(state, sprite, oldcoords);
+
+    SpriteData oldSprite = {
+        .spritedata = sprite->data,
+        .height = actor.height,
+        .width = actor.width,
+        .coords = oldcoords
+    };
+    SpriteData newSprite = {
+        .spritedata = sprite->data,
+        .height = sprite->height,
+        .width = sprite->width,
+        .coords = actorCoords
+    };
+    actorEraseMovedSprite(&oldSprite, &newSprite);
 }
 
-
-Sprite* findActorSpriteAndUpdate(State* state) {
-    Sprite* sprite = actorGetSpriteAddress(state->x & 0x6, state->spriteIndex);
-    actorUpdate(state, sprite);
-    return sprite;
-}
 
 void updateAndEraseActor(State* state) {
-    Sprite* s = findActorSpriteAndUpdate(state);
-    Sprite* spriteActor = actorFindPosDir();
-    Coords act = getSpritePosition(spriteActor, actorCoords);
-    actorEraseMovedSprite(state, spriteActor, actor.coords);
+    Sprite* s = getSpriteAddress(state->x & 0x6, state->spriteIndex);
+    actorUpdate(state, s);
+    SpriteData newSprite = {
+        .spritedata = s->data,
+        .height = s->height,
+        .coords = actorCoords,
+        .width = s->width
+    };
+    Sprite* spriteActor = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
+    SpriteData oldSprite = {
+        .spritedata = spriteActor->data,
+        .height = spriteActor->height,
+        .coords = actor.coords,
+        .width = spriteActor->width
+    };
+    //Coords act = getSpritePosition(spriteActor, actorCoords);
+    actorEraseMovedSprite(&oldSprite, &newSprite);
 }
 
 bool alienCollision(State* state) {
@@ -499,10 +750,9 @@ bool alienCollision(State* state) {
 void colorizeSprite(State* state) {
    Attrib a = {.attrib = state->color};
    for(byte w = 0; w < actor.width; ++w ) {
-    byte col = actorCoords.x /8 + w;
+    byte col = (state->x /8 + w) % 32;
     for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
-        byte row = actorCoords.x / 8 - h;
-        if(row > 23) row = 23;  
+        byte row = (byte)(state->y / 8 - h) % 24;
         setAttrib(col, row, a);
     }
    } 
@@ -579,7 +829,7 @@ byte laserBeamFire(State* state) {
 }
 
 void enableAnimationState(State* state, byte value) {
-    state->animByte2 = value;
+    state->oldSpriteIndex = value;
     state->spriteIndex = Animating;
     state->frame = 0;
 }
@@ -605,6 +855,68 @@ void alienCollisionAnimSfx(State* state) {
     animationStateReset(state);
     sfxSetExplodeParam(state, 1);
     explosionAfterKill();
+}
+
+static inline void swapState(State* one, State* two) {
+    State tmp = *one;
+    *one = *two;
+    *two = tmp;
+}
+
+void playersSwap() {
+    swap(&playerLevel, &inactivePlayerLevel);
+    swapState(&rocketState, &inactiveRocketState[0]);
+    swapState(&rocketModuleState, &inactiveRocketState[1]);
+    swapState(&itemState, &inactiveRocketState[2]);
+}
+
+void resetGame() {
+    gameReset = true;
+}
+
+void displayGameOver() {
+    static char* gameover = "GAME OVER PLAYER X";
+    static const Coords coords = {.x = 0x38, .y = 70};
+    gameover[strlen(gameover) - 1] = (currentPlayerNumber ? '2' : '1');
+    resetScreen();
+    textOutAttrib(
+        coords, gameover,(Attrib){.attrib = 0x47}
+    );
+    gameSleep(1000);
+}
+
+void playerTurnEnds(State* state) {
+#define IDXFROM 3
+#define IDXTO  0xc
+   
+    for(byte b = IDXFROM; b <= IDXTO; ++b) {
+        states[b]->spriteIndex = 0;
+    }
+    rocketModuleState.state &= ~1;
+    itemState.state &= ~1;
+    if(gameOptions.players) {
+        if(inactivePlayerLives) {
+            if(!playerLives) {
+                displayGameOver();
+            }
+            playersSwap();
+            currentPlayerNumber = ~currentPlayerNumber;
+            byte offset = ((rocketState.state) << 3) & 0x38;
+            bufferCopyRocket(offset);
+            levelInit();
+            playerInit();
+            return;
+        }
+    }
+    if(!playerLives) {
+        updateHiScore();
+        displayGameOver();
+        resetGame();
+    } else {
+        levelInit();
+        playerInit();
+    }
+
 }
 
 void do_updateRocketColor(State* state, byte counter){
@@ -649,7 +961,121 @@ void updateRocketColor(State* state) {
     do_updateRocketColor(state, counter);
 }
 
-void jetmanWalk(State* cur){}
+void sfxLaserFire() {
+    byte dur = 0x08;
+    while(dur++ < 0x38)
+        playSound(dur, dur);
+}
+
+void laserBeamDraw(LaserBeam* laser, byte x) {
+    laser->y = jetmanState.y - 0x0d;
+    laser->x[0] = x;
+    x &= 0xfb;
+    for(byte b = 1; b < 4; ++b) {
+        laser->x[b] = x;
+    }
+    laser->lenght = byteRand() & 0x38 | 0x84;
+    laser->color = laserBeamColors[byteRand() & 0x3];
+    sfxLaserFire();
+}
+
+void laserBeamShootRight(LaserBeam* laserBeam) {
+    byte x = jetmanState.x & 0x7;
+    if(x) {
+        x += 8;
+    }
+    x += 0x10;
+    x &= 0xfe;
+    laserBeamDraw(laserBeam, x);
+}
+
+void laserBeamInit(LaserBeam* laserBeam) {
+    laserBeam->used = LBUsed;
+    byte dir = jetmanState.spriteIndex;
+    byte x = jetmanState.x & 0xf8 | 0x5;
+    if(dir & 0x40) {
+        laserBeamShootRight(laserBeam);
+    } else {
+        x -= 8;
+    }
+    laserBeamDraw(laserBeam, x);
+}
+
+void laserNewIfFreeSlot(State* cur) {
+    if(getGameTime() & 3)
+        return;
+    for(LaserBeam* laser = laserBeamParam; laser < laserBeamParam + array_sizeof(laserBeamParam); ++laser) {
+        if(laser->used == LBUnused) {
+            laserBeamInit(laser);
+            break;
+        }
+    }
+}
+
+void jetmanRedraw(State* cur) {
+    updateAndEraseActor(cur);
+    colorizeSprite(cur);
+    enum KeyboardResult res = readInputFire();
+    if(res == Fire) {
+        laserNewIfFreeSlot(cur);
+    }
+}
+
+void jetmanWalkOffPlatform(State* cur) {
+    cur->spriteIndex = cur->spriteIndex & 0xc0 | 1;
+    State* thruster = &jetmanThrusterAnimState;
+    if(!thruster->spriteIndex) {
+        thruster->spriteIndex = 0x03;
+        thruster->x = jetmanState.x;
+        thruster->y = jetmanState.y;
+        animationStateReset(thruster);
+    }
+    cur->y -= 2;
+    jetmanRedraw(cur);
+}
+
+void jetmanWalk(State* cur){
+    actorSaveSpritePos(cur);
+    enum KeyboardResult res = readInputLR();
+    switch(res) {
+        case Right:
+            {
+                ++cur->x;
+                cur->spriteIndex &= ~0x40;
+                cur->moving.rl = 0;
+                cur->xspeed = 0x20;
+            }
+            break;
+        case Left:
+            {
+                --cur->x;
+                cur->spriteIndex |= 0x40;
+                cur->moving.rl = 1;
+                cur->xspeed = 0x20;
+            }
+            break;
+        default:
+            cur->xspeed = 0;
+            break;
+    }
+    res = readInputThrust();
+    byte eRes = checkPlatformCollision(cur);
+    if(res == None || (eRes & 0x4)) {
+        jetmanWalkOffPlatform(cur);
+        return;
+    }
+    if((eRes & 0x8) == 0 || cur->xspeed != 0) {
+        jetmanRedraw(cur);
+        return;
+    }
+    if(cur->spriteIndex & 0x40) {
+        --cur->x;
+    } else {
+        ++cur->x;
+    }
+    cur->xspeed = 0x20;
+    jetmanRedraw(cur);
+}
 void meteorUpdate(State* cur){
     actorSaveSpritePos(cur);
     ++currentAlienNumber;
@@ -680,11 +1106,144 @@ void meteorUpdate(State* cur){
         }
     }
 }
-void collisionDetection(State* cur){}
+
+void redrawSprite(State* cur) {
+    updateAndEraseActor(cur);
+    colorizeSprite(cur);
+}
+
+void getCollectibleID(State* state) {
+    byte idx = (playerLevel / 2) & 0x6;
+    idx += state->oldSpriteIndex;
+    Sprite* sprite = collectibleSpriteTable[idx / 2];
+    actorUpdate(state, sprite);
+    actor.spriteHeight = 0;
+    SpriteData sd = {
+        .spritedata = sprite->data,
+        .height = sprite->height,
+        .coords = actorCoords,
+        .width = sprite->width
+    };
+    maskSprite(NULL, &sd);
+    colorizeSprite(state);
+}
+
+void sfxRocketBuild() {
+    playSound(0x20, 0x50);
+}
+
+void pickupRocketItem(State* cur) {
+    byte a = cur->jumpTableOffset;
+    if(a == 0x18) {
+        if(cur->y < 0xb0) {
+            cur->y -= 2;
+            redrawSprite(cur);
+            return;
+        } else {
+            ++rocketState.state;
+        }
+    } else {
+        a <<= 1;
+        a += cur->y;
+        if(a < 0xb7) {
+            cur->y += 2;
+            redrawSprite(cur);
+            return;
+        } else {
+            rocketModuleState.state |= 1;
+            ++rocketState.state;
+            bufferCopyRocket(cur->jumpTableOffset + 0x8);
+        }
+    }
+    actorFindDestroy(cur);
+    cur->spriteIndex = 0;
+    sfxRocketBuild();
+}
+
+void carryRocketItem(State* cur){
+    cur->x = jetmanState.x;
+    cur->y = jetmanState.y;
+    sbyte diff = byteAbs(rocketState.x - cur->x);
+    if(diff < 6) {
+        cur->state |= Pickup;
+        cur->x = rocketState.x;
+    }
+    redrawSprite(cur);
+}
+
+void sfxPickupFuel() {
+    playSound(0x50, 0x28);
+}
+
+void collectRocketItem(State* cur) {
+    cur->state = Pickup;
+    actorFindDestroy(cur);
+    addPointsToScore(100);
+    sfxPickupFuel();
+    cur->x = jetmanState.x;
+    cur->y = jetmanState.y;
+    actorSaveSpritePos(cur);
+    redrawSprite(cur);
+}
+
+void collisionDetection(State* cur){
+    actorSaveSpritePos(cur);
+    enum RMState curstate = cur->state;
+    if(curstate & Pickup) {
+        pickupRocketItem(cur);
+    } 
+    else if (curstate & Carrying) {
+        carryRocketItem(cur);
+    }
+    else if(curstate & Free) {
+        getCollectibleID(cur);
+    }
+    else {
+        if(alienCollision(cur) == 1){
+            collectRocketItem(cur);
+        }
+        if((checkPlatformCollision(cur) & 0x4) == 0)
+            cur->y += 2;
+        redrawSprite(cur);
+    }
+}
 void crossedShipUpdate(State* cur){}
 void sphereAlienUpdate(State* cur){}
 void jetFighterUpdate(State* cur){}
-void animateExplosion(State* cur){}
+void animateExplosion(State* cur){
+    ++currentAlienNumber;
+    byte oldframe = cur->frame;
+    if(((byte)getGameTime() & cur->animByte) == 0)
+        ++cur->frame;
+    Sprite* explosionFrame = explosionSpriteTable[oldframe];
+
+    if(oldframe < 6) {
+        SpriteData sd = {
+            .spritedata = explosionFrame->data,
+            .height = explosionFrame->height,
+            .coords = (Coords){.x = cur->x, .y = cur->y},
+            .width = explosionFrame->width
+        };
+        actorSaveSpritePos(cur);
+        if(oldframe < 3) {
+            maskSprite(NULL, &sd);
+            byte r = byteRand() & 0x07 | 0x42;
+            cur->color = r;
+            colorizeSprite(cur);
+        } else {
+            maskSprite(&sd, NULL);
+        }
+    }
+    else {
+        cur->spriteIndex = cur->oldSpriteIndex;
+        actorSaveSpritePos(cur);
+        actorFindDestroy(cur);
+        cur->spriteIndex = 0;
+        if((cur->oldSpriteIndex & 0x3f) < 3) {
+            playerTurnEnds(cur);
+        }
+    }
+}
 
 void rocketUpdate(State* cur){
     actorSaveSpritePos(cur);  // update actor with x, y e spriteIndex
@@ -752,8 +1311,8 @@ void itemNewCollectible() {
 void newActor(void){
     ++currentState;
     if(currentState > maxState) {  // @FIX self modifying code
-        while(IsKeyDown(KEY_LEFT_SHIFT));
-        byte r = (byte) rand();
+        while(isKeyDown(keyPause));
+        byte r = byteRand();
         if(
             (r > 32 || currentAlienNumber > 3) || 
             currentAlienNumber <= 6 ||
@@ -764,12 +1323,12 @@ void newActor(void){
             for(byte b = 0; b < array_sizeof(alienState); ++b) {
                 if(alienState[b].type == RMUnused) {
                     alienState[b] = defaultAlienState;
-                    r = (rand() & 1 ? 0x20 : 0);
+                    r = (byteRand() & 1 ? 0x40 : 0); 
                     alienState[b].frame = r; //moving
                     alienState[b].utype = r; //direction
-                    r = rand() & 0x7f + 0x28;
+                    r = (byteRand() & 0x7f) + 0x28;
                     alienState[b].y = r;
-                    r = rand() & 0x3 + 2;
+                    r = byteRand() & 0x3 + 2;
                     alienState[b].color = r;
                     alienState[b].jumpTableOffset = (r & 1);
                     r = itemLevelObjectTypes[playerLevel & 0x07];

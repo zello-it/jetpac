@@ -27,6 +27,9 @@ void textOut(Coords coords, const char* msg);
 void setAttrib(byte col, byte row, Attrib attrib);
 Attrib getAttrib(byte col, byte row);
 void squareOut(Coords coords, const byte* square, Attrib attrib);
+void lockVideo();
+void unlockVideo();
+
 
 enum Operator{
     EQUAL,
@@ -35,6 +38,7 @@ enum Operator{
     AND
 };
 void byteOut(Coords coords, const byte byte, enum Operator op);
+void byteOutNoLock(Coords coords, const byte byte, enum Operator op);
 
 void playSound(byte pitch, byte duration);
 

@@ -159,6 +159,13 @@ void swapColors(Color* one, Color* two){
     *two = tmp;
 }
 
+void lockVideo() {
+	pthread_mutex_lock(&video_mutex);
+}
+void unlockVideo() {
+	pthread_mutex_unlock(&video_mutex);
+}
+
 static inline void writeVideo(byte xcol, byte yline, byte what) {
 	assert(xcol < 32 && yline < 192);
 	video[yline][xcol] = what;
@@ -212,10 +219,10 @@ void renderLoop(void){
     while(!WindowShouldClose()) {
 		usleep(2000);
 		atomic_fetch_add(&gameTime, 1);
-		pthread_mutex_lock(&video_mutex);
+		lockVideo();
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
-		pthread_mutex_unlock(&video_mutex);
+		unlockVideo();
         BeginDrawing();
             DrawTexturePro(
                 tex,
@@ -244,10 +251,10 @@ void checkTermination(void) {
 }
 
 void clearScreen(Attrib attrib){
-	pthread_mutex_lock(&video_mutex);
+	lockVideo();
     bzero(video, sizeof(video));
     memset(attribs, attrib.attrib, sizeof(attribs));
-	pthread_mutex_unlock(&video_mutex);
+	unlockVideo();
 }
 
 void do_SquareOut(Coords coords, const byte* ptr) { //unlocked version
@@ -263,52 +270,50 @@ void do_SquareOutAttrib(Coords coords, const byte* ptr, Attrib attr) {
 void textOutAttrib(Coords coords, const char* ptr, Attrib attr){
     byte x = coords.x;
     byte y = coords.y;
-    pthread_mutex_lock(&video_mutex);
+    lockVideo();
     while(*ptr) {
         byte* ch = &charset[*ptr - 32][0];
         do_SquareOutAttrib((Coords){.x = x, .y = y}, ch, attr);
         ++ptr;
 		x += 8;
     }
-    pthread_mutex_unlock(&video_mutex);
+    unlockVideo();
 }
 
 void textOut(Coords coords, const char* ptr){
     byte x = coords.x;
     byte y = coords.y;
-    pthread_mutex_lock(&video_mutex);
+    lockVideo();
     while(*ptr) {
         byte* ch = &charset[*ptr - 32][0];
         do_SquareOut((Coords){.x = x, .y = y}, ch);
         ++ptr;
 		x += 8;
     }
-    pthread_mutex_unlock(&video_mutex);
+    unlockVideo();
 }
 
 void setAttrib(byte col, byte row, Attrib attr) {
-    pthread_mutex_lock(&video_mutex);
+    lockVideo();
 	writeAttrib(col, row, attr);
-    pthread_mutex_unlock(&video_mutex);
+    unlockVideo();
 }
 
 Attrib getAttrib(byte col, byte row) {
-	pthread_mutex_lock(&video_mutex);
+	lockVideo();
 	Attrib ret = attribs[row][col];
-	pthread_mutex_unlock(&video_mutex);
+	unlockVideo();
 	return ret;
 }
 
 void squareOut(Coords coords, const byte* ptr, Attrib attr) {
-	pthread_mutex_lock(&video_mutex);
+	lockVideo();
 	do_SquareOutAttrib(coords, ptr, attr);
-	pthread_mutex_unlock(&video_mutex);
+	unlockVideo();
 }
 
-void byteOut(Coords coords, const byte byte1, enum Operator op) {
-	assert(coords.y < 192);
-	pthread_mutex_lock(&video_mutex);
-	byte b = video[coords.y][coords.x / 8];
+void byteOutNoLock(Coords coords, const byte byte1, enum Operator op) {
+byte b = video[coords.y][coords.x / 8];
 	switch(op) {
 		case EQUAL:
 			b = byte1;
@@ -328,7 +333,13 @@ void byteOut(Coords coords, const byte byte1, enum Operator op) {
 	}
 	//printf("Writing %x at %d %d\n", b, coords.x, coords.y);
 	writeVideo(coords.x / 8, coords.y, b);
-	pthread_mutex_unlock(&video_mutex);
+}
+
+void byteOut(Coords coords, const byte byte1, enum Operator op) {
+	assert(coords.y < 192);
+	lockVideo();
+	byteOutNoLock(coords, byte1, op);
+	unlockVideo();
 }
 
 word getGameTime(){
