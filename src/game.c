@@ -442,7 +442,7 @@ void jetmanFlyHorizontal(State* cur) {
         cur->yspeed = 0;
         jetmanFlyVertical(cur);
     }
-    if(readInputThrust() == Thrust) {
+    if(readInputThrust() != Thrust) {
         //    jetmanSetMoveDown(cur);
         cur->spriteIndex |= 0x80;
         if(cur->moving.ud) {
@@ -575,26 +575,15 @@ bool alienCollision(State* state) {
     return ret;
 }
 
-void colorizeSprite(State* state) {
-   Attrib a = {.attrib = state->color};
-   for(byte w = 0; w < actor.width; ++w ) {
-    byte col = (state->x /8 + w) % 32;
-    for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
-        byte row = (byte)(state->y / 8 - h) % 24;
-        setAttrib(col, row, a);
-    }
-   } 
-}
-
-byte checkPlatformCollision(State* state) { //jetmanPlatformCollision
-    byte eRet;
+byte checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
+    byte eRet = 0;
     for(byte b = 0; b < 4; ++b) {
         eRet = 0;
         GFXParams* platform = &gfxParamsPlatforms[b];
         sbyte diff = platform->x - state->x;
         if(diff >= 0) {
             // L75D1
-            if((state->spriteIndex & 0x1f) == 3)
+            if((state->spriteIndex & 0x3f) == 3)
             {
                 if(diff >= 9)
                     diff -= 9;
@@ -604,7 +593,7 @@ byte checkPlatformCollision(State* state) { //jetmanPlatformCollision
             diff = byteAbs(diff);
             eRet |= 0x40;
         }
-        if(diff > platform->width) {
+        if(diff >= platform->width) {
             continue;
         }
         diff += 0x12;
@@ -864,6 +853,7 @@ void jetmanWalkOffPlatform(State* cur) {
 
 void jetmanWalk(State* cur){
     actorSaveSpritePos(cur);
+    printf("Jetman speed is %d\n", cur->xspeed);
     enum KeyboardResult res = readInputLR();
     switch(res) {
         case Right:
@@ -935,27 +925,6 @@ void meteorUpdate(State* cur){
     }
 }
 
-void redrawSprite(State* cur) {
-    updateAndEraseActor(cur);
-    colorizeSprite(cur);
-}
-
-void getCollectibleID(State* state) {
-    byte idx = (playerLevel / 2) & 0x6;
-    idx += state->oldSpriteIndex;
-    Sprite* sprite = collectibleSpriteTable[idx / 2];
-    actorUpdate(state, sprite);
-    actor.spriteHeight = 0;
-    SpriteData sd = {
-        .spritedata = sprite->data,
-        .height = sprite->height,
-        .coords = actorCoords,
-        .width = sprite->width
-    };
-    maskSprite(NULL, &sd);
-    colorizeSprite(state);
-}
-
 void sfxRocketBuild() {
     playSound(0x20, 0x50);
 }
@@ -1004,7 +973,7 @@ void sfxPickupFuel() {
 }
 
 void collectRocketItem(State* cur) {
-    cur->state = Pickup;
+    cur->state = Carrying;
     actorFindDestroy(cur);
     addPointsToScore(100);
     sfxPickupFuel();
@@ -1141,8 +1110,13 @@ void newActor(void){
     if(currentState > maxState) {  // @FIX self modifying code
         while(isKeyDown(keyPause));
         byte r = byteRand();
+#ifndef NDEBUG
+        bool aliens = true;
+#else
+        bool aliens = true;
+#endif
         if(
-            false && (
+            aliens && (
             (r > 32 || currentAlienNumber > 3) || 
             currentAlienNumber <= 6 ||
             playerDelayCounter == 0 ||

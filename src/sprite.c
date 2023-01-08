@@ -1,38 +1,45 @@
 #include "sprite.h"
 #include "video.h"
 #include <stdbool.h>
+#include <assert.h>
+
 
 static void actorEraseMovedSprite(SpriteData* oldSprite, SpriteData* newSprite) {
+    // should be the same: the y coords are not adjusted: there is no need to pass 
+    // state as argument
     sbyte diff = oldSprite->coords.y - newSprite->coords.y;
-    bool b = false;
+    //sbyte diff = actor.y - cur->y;
     switch(byteSgn(diff)) {
     case 0:
-        oldSprite->height = actor.gfxDtaHeight;
+        oldSprite->height = actor.spriteHeight;
+        newSprite->height = actor.gfxDtaHeight;
         actor.spriteHeight = actor.gfxDtaHeight = 0;
         maskSprite(oldSprite, newSprite);
         break;
     case -1:
         diff = byteAbs(diff);
         if(actor.gfxDtaHeight < diff) {
-            newSprite->height = diff;
-            oldSprite->height = actor.gfxDtaHeight;
+            oldSprite->height = actor.spriteHeight;
+            newSprite->height = actor.gfxDtaHeight;
             actor.spriteHeight = actor.gfxDtaHeight = 0;
-            maskSprite(oldSprite, newSprite);
+            // register are swapped!!
+            maskSprite(newSprite, oldSprite);
         } else {
+            oldSprite->height = actor.gfxDtaHeight;
             actor.gfxDtaHeight = actor.gfxDtaHeight - diff;
             maskSprite(oldSprite, newSprite);
         }
         break;
-        //b = true;
-        //fallthrough
+
     case 1: 
-        if(actor.gfxDtaHeight < diff) {
-            oldSprite->height = diff;
-            actor.gfxDtaHeight = actor.gfxDtaHeight = 0;    
+        if(actor.spriteHeight < diff) {
+            newSprite->height = actor.gfxDtaHeight;
+            oldSprite->height = actor.spriteHeight;
+            actor.spriteHeight = actor.gfxDtaHeight = 0;    
             maskSprite(oldSprite, newSprite);
         } else {
+            oldSprite->height = actor.spriteHeight;
             actor.spriteHeight -= diff;
-            oldSprite->height = diff;
             maskSprite(oldSprite, newSprite);
         }
          break;
@@ -71,51 +78,12 @@ static void writeSprite(SpriteData* sd, enum Operator op) {
     }
 }
 
-void updateAndEraseActor(State* state) {
-    Sprite* s = getSpriteAddress(state->x & 0x6, state->spriteIndex);
-    actorUpdate(state, s);
-    SpriteData newSprite = {
-        .spritedata = s->data,
-        .height = s->height,
-        .coords = (Coords){.x = state->x, .y = state->y},//actorCoords,
-        .width = s->width
-    };
-    Sprite* spriteActor = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
-    SpriteData oldSprite = {
-        .spritedata = spriteActor->data,
-        .height = spriteActor->height,
-        .coords = actor.coords,
-        .width = spriteActor->width
-    };
-    //Coords act = getSpritePosition(spriteActor, actorCoords);
-    actorEraseMovedSprite(&oldSprite, &newSprite);
-}
 
-
-
-
-Coords getSpritePosition(Sprite* sprite, Coords coords) {
-    Coords ret;
-    ret.x = sprite->xoffset + coords.x;
-    ret.y = coords.y;
-    actor.spriteHeight = sprite->height;
-    return ret;
-}
-
-void maskSprite(SpriteData* maskSprite, SpriteData* newSprite) {
-    if(maskSprite && newSprite && (maskSprite->coords.x != newSprite->coords.x)) {
-        printf("Deleting %x @%d, %d h = %d\n", (uint) maskSprite->spritedata, maskSprite->coords.x, maskSprite->coords.y, maskSprite->height);
-        printf("Writing %x @%d, %d h = %d\n", (uint) newSprite->spritedata, newSprite->coords.x, newSprite->coords.y, newSprite->height);
-        printf("******\n");
-    }
-    lockVideo();
-    if(maskSprite && maskSprite->height) {  
-        writeSprite(maskSprite, AND);
-    }
-    if(newSprite && newSprite->height) {
-        writeSprite(newSprite, OR);
-    }
-    unlockVideo();
+static Coords actorUpdate(State* state, Sprite* sprite) {
+    actorCoords = (Coords) {.x = state->x + sprite->xoffset, .y = state->y};
+    actor.width = sprite->width;
+    actor.gfxDtaHeight = actor.height = sprite->height;
+    return actorCoords;
 }
 
 
@@ -128,6 +96,62 @@ Sprite* getSpriteAddress(byte x, byte header) {
     index >>= 1; // word to index
 //    printf("Asking for %x, returned %d\n", header, index);
     return spriteTable[index];
+}
+
+void updateAndEraseActor(State* state) {
+    /*
+    * In original code: FindActorSpriteAndUpdate, which is
+    * ActorMoveSprite => getSpriteAddress + ActorUpdate
+    * ActorUpdate return hl (sprite coords + offsetx), a (sprite height), de (sprite data)
+    * and save in actor.gfxDtaHeight & gfxData the height, in actor.width the width.
+    * Then it switch register set (exx) and calls JumpActorFindPosDir, which:
+    * - finds the address of the sprite pointed by actor (old Sprite)
+    * - find its position using getSpritePosition (de to sprite data, a is height, b is width)
+    * Finally it drops in ActorEraseMovedSprite
+    * Note: getSpritePosition is essential in "correcting" the sprite coords in case of 
+    * Left movements.
+    */
+    Sprite* s = getSpriteAddress(state->x & 0x6, state->spriteIndex);
+    actorUpdate(state, s);
+    SpriteData newSprite = {
+        .spritedata = s->data,
+        .height = s->height,
+        .coords = actorCoords,
+        .width = s->width
+    };
+    Sprite* spriteActor = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
+    Coords oldcoords = getSpritePosition(spriteActor, actor.coords);
+    SpriteData oldSprite = {
+        .spritedata = spriteActor->data,
+        .height = spriteActor->height,
+        .coords = oldcoords,
+        .width = spriteActor->width
+    };
+    actorEraseMovedSprite(&oldSprite, &newSprite);
+}
+
+Coords getSpritePosition(Sprite* sprite, Coords coords) {
+    Coords ret;
+    ret.x = sprite->xoffset + coords.x;
+    ret.y = coords.y;
+    actor.spriteHeight = sprite->height;
+    return ret;
+}
+
+void maskSprite(SpriteData* maskSprite, SpriteData* newSprite) {
+    // if(maskSprite && newSprite && (maskSprite->coords.x != newSprite->coords.x)) {
+    //     printf("Deleting %x @%d, %d h = %d\n", (uint) maskSprite->spritedata, maskSprite->coords.x, maskSprite->coords.y, maskSprite->height);
+    //     printf("Writing %x @%d, %d h = %d\n", (uint) newSprite->spritedata, newSprite->coords.x, newSprite->coords.y, newSprite->height);
+    //     printf("******\n");
+    // }
+    lockVideo();
+    if(maskSprite && maskSprite->height) {  
+        writeSprite(maskSprite, AND);
+    }
+    if(newSprite && newSprite->height) {
+        writeSprite(newSprite, OR);
+    }
+    unlockVideo();
 }
 
 
@@ -153,7 +177,6 @@ Coords actorFindDestroy(State* state){
 void actorUpdatePosition(State* state, Sprite* sprite) {
     Coords oldcoords = getSpritePosition(sprite, actor.coords);
     actorUpdate(state, sprite);
-
     SpriteData oldSprite = {
         .spritedata = sprite->data,
         .height = actor.height,
@@ -169,11 +192,37 @@ void actorUpdatePosition(State* state, Sprite* sprite) {
     actorEraseMovedSprite(&oldSprite, &newSprite);
 }
 
-
-Coords actorUpdate(State* state, Sprite* sprite) {
-    actorCoords = (Coords) {.x = state->x + sprite->xoffset, .y = state->y};
-    actor.width = sprite->width;
-    actor.gfxDtaHeight = actor.height = sprite->height;
-    return actorCoords;
+void getCollectibleID(State* state) {
+    byte idx = (playerLevel / 2) & 0x6;
+    idx += state->oldSpriteIndex;
+    Sprite* sprite = collectibleSpriteTable[idx / 2];
+    actorUpdate(state, sprite);
+    actor.spriteHeight = 0;
+    SpriteData sd = {
+        .spritedata = sprite->data,
+        .height = sprite->height,
+        .coords = actorCoords,
+        .width = sprite->width
+    };
+    maskSprite(NULL, &sd);
+    colorizeSprite(state);
 }
+
+
+void colorizeSprite(State* state) {
+   Attrib a = {.attrib = state->color};
+   for(byte w = 0; w < actor.width; ++w ) {
+    byte col = (state->x /8 + w) % 32;
+    for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
+        byte row = (byte)(state->y / 8 - h) % 24;
+        setAttrib(col, row, a);
+    }
+   } 
+}
+
+void redrawSprite(State* cur) {
+    updateAndEraseActor(cur);
+    colorizeSprite(cur);
+}
+
 

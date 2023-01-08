@@ -424,7 +424,7 @@ SPRITE(jetman_fly_right2, 0, 3, 0x18);
 SPRITE(jetman_fly_right3, 0, 3, 0x18);
 SPRITE(jetman_fly_right4, 0, 3, 0x18);
 SPRITE(jetman_fly_left1, 8, 2, 0x18);
-SPRITE(jetman_fly_left2, 8, 3, 0x18);
+SPRITE(jetman_fly_left2, 8, 2, 0x18);
 SPRITE(jetman_fly_left3, 0, 3, 0x18);
 SPRITE(jetman_fly_left4, 0, 3, 0x18);
 SPRITE(jetman_walk_left1, 8, 2, 0x18);
