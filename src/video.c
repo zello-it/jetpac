@@ -1,6 +1,5 @@
 #include "video.h"
 #include "data.h" // for swap
-#include "fonts.h"
 #include <raylib.h>
 #include <pthread.h>
 #include <stdlib.h>

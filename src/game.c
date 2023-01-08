@@ -2,12 +2,12 @@
 #include "data.h"
 #include "video.h"
 #include "menu.h"
+#include "sprite.h"
 #include "keyboard.h"
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
@@ -101,6 +101,8 @@ void resetGlobals(void) {
     jetmanFlyCounter = 0;
 }
 
+
+#ifndef NDEBUG
 static inline void bin(byte s) {
     char buf[9] = {0};
     for(int i = 0; i < 8; ++i) {
@@ -115,6 +117,7 @@ void dbgPrint(const char * arg, byte b) {
     bin(b);
     printf("\n");
 }
+#endif
 
 byte* writeThreeBytes(byte* what, byte* to, byte shift, byte flip) {
     byte b1, b2, b3;
@@ -302,23 +305,19 @@ void initFlipped() {
 }
 
 void newGame(void) {
-    initFlipped();
-    while(true) {
-        srand(time(NULL));
-        playerLevel = 0;
-        playerLives = 4;
-        rocketReset();
-        inactivePlayerLevel = 0;
-        if(gameOptions.players) {
-            inactivePlayerLives = 5;
-        } else {
-            inactivePlayerLives = 0;
-        }
-        levelNew();
-        currentAlienNumber = 0;
-        mainLoop();
-        gameReset = false;
+    srand(time(NULL));
+    playerLevel = 0;
+    playerLives = 4;
+    rocketReset();
+    inactivePlayerLevel = 0;
+    if(gameOptions.players) {
+        inactivePlayerLives = 5;
+    } else {
+        inactivePlayerLives = 0;
     }
+    levelNew();
+    currentAlienNumber = 0;
+    mainLoop();
 }
 
 void showScore(int line, int col, uint32_t score) {
@@ -353,11 +352,15 @@ void resetScreen(void){
 }
 
 void startGame(void) {
-    resetGlobals();
-    resetScreen();
-    jetmanSpeedModifier = 0x4;
-    menuScreen();
-    newGame();
+    initFlipped();
+    while(true) {
+        resetGlobals();
+        resetScreen();
+        jetmanSpeedModifier = 0x4;
+        menuScreen();
+        newGame();
+        gameReset = false;
+    }
 }
 
 // update functions
@@ -554,181 +557,6 @@ void gamePlayStarts(State* cur){
         jetmanFlyThrust(cur);
 }
 
-Coords actorUpdate(State* state, Sprite* sprite) {
-    actorCoords = (Coords) {.x = state->x + sprite->xoffset, .y = state->y};
-    actor.width = sprite->width;
-    actor.gfxDtaHeight = actor.height = sprite->height;
-    return actorCoords;
-}
-
-Coords getSpritePosition(Sprite* sprite, Coords coords) {
-    Coords ret;
-    ret.x = sprite->xoffset + coords.x;
-    ret.y = coords.y;
-    actor.spriteHeight = sprite->height;
-    return ret;
-}
-
-typedef struct {
-    byte* spritedata;
-    Coords coords;
-    byte height;
-    byte width; // should be constant
-} SpriteData;
-
-void writeSprite(SpriteData* sd, enum Operator op) {
-    while(sd->height--) {
-        for(byte col = 0; col < sd->width; ++col) {
-            byte out = *sd->spritedata++;
-            if(op == AND)
-                out = ~out;
-            byteOutNoLock(
-                (Coords){.x = sd->coords.x + 8 * col, .y = sd->coords.y},
-                out,
-                op
-            );
-        }
-        --sd->coords.y;
-        if(sd->coords.y > 191)
-            sd->coords.y = 191;
-    }
-}
-
-void maskSprite(SpriteData* maskSprite, SpriteData* newSprite) {
-    // printf("******\n");
-    // if(maskSprite)
-    //     printf("Deleting @%d, %d h = %d\n", maskSprite->coords.x, maskSprite->coords.y, maskSprite->height);
-    // if(newSprite)
-    //     printf("Writing @%d, %d h = %d\n", newSprite->coords.x, newSprite->coords.y, newSprite->height);
-    // printf("******\n");
-    lockVideo();
-    if(maskSprite && maskSprite->height) {  
-        writeSprite(maskSprite, AND);
-    }
-    if(newSprite && newSprite->height) {
-        writeSprite(newSprite, OR);
-    }
-    unlockVideo();
-}
-
-Sprite* getSpriteAddress(byte x, byte header) {
-    if(header & 0x40) {  // maybe 0x20... Qui entra x come offset. I bytes alti escono 
-        x |= 0x8;        // per effetto dello shift (o del rlca maskato con f0)
-    }
-    --header;
-    byte index = (header << 4) | x; // il mask (& 0xf0) non serve, non stiamo ruotando
-    index >>= 1; // word to index
-//    printf("Asking for %x, returned %d\n", header, index);
-    return spriteTable[index];
-}
-
-/**
- * Update actor tmp buffer with position and sprite index of the 
- * current object
-*/
-void actorSaveSpritePos(State* cur) {    //actorUpdatePosDir
-    actor.x = cur->x;
-    actor.y = cur->y;
-    actor.spriteIndex = cur->spriteIndex;
-}
-
-void actorEraseDestroyed(State* state, Sprite* sprite, Coords coords) {
-    byte c = actor.height;
-    actor.gfxDtaHeight = 0;
-    actor.height = 0;
-    SpriteData sd = {
-        .spritedata = sprite->data,
-        .coords = coords,
-        .height = c,
-        .width = actor.width
-    };
-    maskSprite(&sd, NULL);
-}
-
-Coords actorFindDestroy(State* state){
-    Sprite* sprite = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
-    Coords coords = getSpritePosition(sprite, actor.coords);
-    actorEraseDestroyed(state, sprite, coords);
-    return coords;
-}
-
-
-void actorEraseMovedSprite(SpriteData* oldSprite, SpriteData* newSprite) {
-    sbyte diff = oldSprite->coords.y - newSprite->coords.y;
-    bool b = false;
-    switch(byteSgn(diff)) {
-    case 0:
-        oldSprite->height = actor.gfxDtaHeight;
-        actor.spriteHeight = actor.gfxDtaHeight = 0;
-        maskSprite(oldSprite, newSprite);
-        break;
-    case -1:
-        diff = byteAbs(diff);
-        if(actor.gfxDtaHeight < diff) {
-            newSprite->height = diff;
-            oldSprite->height = actor.gfxDtaHeight;
-            actor.spriteHeight = actor.gfxDtaHeight = 0;
-            maskSprite(oldSprite, newSprite);
-        } else {
-            actor.gfxDtaHeight = actor.gfxDtaHeight - diff;
-            maskSprite(oldSprite, newSprite);
-        }
-        break;
-        //b = true;
-        //fallthrough
-    case 1: 
-        if(actor.gfxDtaHeight < diff) {
-            oldSprite->height = diff;
-            actor.gfxDtaHeight = actor.gfxDtaHeight = 0;    
-            maskSprite(oldSprite, newSprite);
-        } else {
-            actor.spriteHeight -= diff;
-            oldSprite->height = diff;
-            maskSprite(oldSprite, newSprite);
-        }
-         break;
-    } // end switch
-}
-
-void actorUpdatePosition(State* state, Sprite* sprite) {
-    Coords oldcoords = getSpritePosition(sprite, actor.coords);
-    actorUpdate(state, sprite);
-
-    SpriteData oldSprite = {
-        .spritedata = sprite->data,
-        .height = actor.height,
-        .width = actor.width,
-        .coords = oldcoords
-    };
-    SpriteData newSprite = {
-        .spritedata = sprite->data,
-        .height = sprite->height,
-        .width = sprite->width,
-        .coords = actorCoords
-    };
-    actorEraseMovedSprite(&oldSprite, &newSprite);
-}
-
-
-void updateAndEraseActor(State* state) {
-    Sprite* s = getSpriteAddress(state->x & 0x6, state->spriteIndex);
-    actorUpdate(state, s);
-    SpriteData newSprite = {
-        .spritedata = s->data,
-        .height = s->height,
-        .coords = actorCoords,
-        .width = s->width
-    };
-    Sprite* spriteActor = getSpriteAddress(actor.x & 0x6, actor.spriteIndex);
-    SpriteData oldSprite = {
-        .spritedata = spriteActor->data,
-        .height = spriteActor->height,
-        .coords = actor.coords,
-        .width = spriteActor->width
-    };
-    //Coords act = getSpritePosition(spriteActor, actorCoords);
-    actorEraseMovedSprite(&oldSprite, &newSprite);
-}
 
 bool alienCollision(State* state) {
     bool ret = false;
@@ -875,7 +703,7 @@ void resetGame() {
 }
 
 void displayGameOver() {
-    static char* gameover = "GAME OVER PLAYER X";
+    static char gameover[] = "GAME OVER PLAYER X";
     static const Coords coords = {.x = 0x38, .y = 70};
     gameover[strlen(gameover) - 1] = (currentPlayerNumber ? '2' : '1');
     resetScreen();
@@ -1060,7 +888,7 @@ void jetmanWalk(State* cur){
     }
     res = readInputThrust();
     byte eRes = checkPlatformCollision(cur);
-    if(res == None || (eRes & 0x4)) {
+    if(res == Thrust || !(eRes & 0x4)) {
         jetmanWalkOffPlatform(cur);
         return;
     }
@@ -1314,10 +1142,12 @@ void newActor(void){
         while(isKeyDown(keyPause));
         byte r = byteRand();
         if(
+            false && (
             (r > 32 || currentAlienNumber > 3) || 
             currentAlienNumber <= 6 ||
             playerDelayCounter == 0 ||
             jetmanState.direction.fly == 0
+            )
         )
         {
             for(byte b = 0; b < array_sizeof(alienState); ++b) {
