@@ -42,6 +42,9 @@ void byteOutNoLock(Coords coords, const byte byte, enum Operator op);
 
 void playSound(byte pitch, byte duration);
 
-word getGameTime();
-void resetGameTime();
+word getGameTime(void);
+void resetGameTime(void);
 void gameSleep(int millis);
+int getMillis(void);
+void ei(void);
+void di(void);

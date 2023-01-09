@@ -37,6 +37,7 @@ byte jetmanFlyCounter;
 State padding = {0, 0, 0, 0, 0, 0, 0, 0};
 // state array
 State* states[] = {
+   &jetmanState,
    &rocketState,                 //0
    &rocketModuleState,           //1
    &itemState,                   //2
@@ -450,16 +451,16 @@ Sprite* explosionSpriteTable[] = {
 
 SPRITE(rocket_u3_bottom, 0, 2, 0x10);
 SPRITE(rocket_u3_middle, 0, 2, 0x10);
-SPRITE(rocket_u3_top, 0, 2, 0x10);
+SPRITE(rocket_u3_top,    0, 2, 0x10);
 SPRITE(rocket_u1_bottom, 0, 2, 0x10);
 SPRITE(rocket_u1_middle, 0, 2, 0x10);
-SPRITE(rocket_u1_top, 0, 2, 0x10);
+SPRITE(rocket_u1_top,    0, 2, 0x10);
 SPRITE(rocket_u5_bottom, 0, 2, 0x10);
 SPRITE(rocket_u5_middle, 0, 2, 0x10);
-SPRITE(rocket_u5_top, 0, 2, 0x10);
+SPRITE(rocket_u5_top,    0, 2, 0x10);
 SPRITE(rocket_u4_bottom, 0, 2, 0x10);
 SPRITE(rocket_u4_middle, 0, 2, 0x10);
-SPRITE(rocket_u4_top, 0, 2, 0x10);
+SPRITE(rocket_u4_top,    0, 2, 0x10);
 SPRITE(gold_bar, 0, 2, 0x8);
 SPRITE(fuel_pod, 0, 2, 0xb);
 SPRITE(radiation, 0, 2, 0xb);

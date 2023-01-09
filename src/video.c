@@ -16,6 +16,7 @@ pthread_t thread = 0;
 atomic_bool terminate;
 pthread_mutex_t video_mutex = PTHREAD_MUTEX_INITIALIZER;
 atomic_uint_least16_t gameTime = 0;
+atomic_bool interruptsEnabled;
 
 
 // charset
@@ -210,14 +211,23 @@ void copyBuffer() {
 }
 
 void initScreen(void) {
+	atomic_store(&interruptsEnabled, true);
     InitWindow(800, 600, "jetpac");
     bufferImage = GenImageColor(256, 192, BLACK);
 }
 void renderLoop(void){
 	Texture2D tex = LoadTextureFromImage(bufferImage);
-    while(!WindowShouldClose()) {
-		usleep(2000);
-		atomic_fetch_add(&gameTime, 1);
+    int millis = 0;
+	while(!WindowShouldClose()) {
+		int newmillis = getMillis();
+		if(atomic_load(&interruptsEnabled)) {
+			if(newmillis - millis > 20) {
+				atomic_fetch_add(&gameTime, 1);
+				millis = newmillis;
+			}
+		} else {
+			millis = newmillis;
+		}
 		lockVideo();
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
@@ -353,6 +363,13 @@ void playSound(byte pitch, byte duration){
 
 }
 
-void gameSleep(int millis) {
-	usleep(millis * 1000);
+void gameSleep(int micro) {
+	usleep(micro);
+}
+
+void ei() {
+	atomic_store(&interruptsEnabled, true);
+}
+void di() {
+	atomic_store(&interruptsEnabled, false);
 }

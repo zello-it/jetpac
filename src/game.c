@@ -55,6 +55,7 @@ Fun mainJumpTable[] = {
 
 bool gameReset = false;
 byte flipped[256];
+byte savedState;
 
 void newActor(void);
 void resetScreen(void);
@@ -157,15 +158,13 @@ void bufferCopy(byte* what, Sprite* where, byte height, byte shift, byte flipped
 }
 
 void bufferCopyRocket(byte arg) {
-    // copia quattro volte lo stesso modulo?
     byte idx = ((playerLevel / 2) & 0x6 | arg) / 2;
     Sprite* dest = bufferItems;
     rocketModAttached = 2;
     jetmanRocketModConnected = 0;
     for(byte b = 0; b < 4; ++b) {
         Sprite* sprite = collectibleSpriteTable[idx];
-        bufferCopy(sprite->data, dest + b, sprite->height, 0, false);
-        idx += 4;
+        bufferCopy(sprite->data, dest + b, sprite->height, 2 * b, false);
     }
 }
 
@@ -268,25 +267,31 @@ bool checkTick() {
     bool ticked = false;
     word newtick = getGameTime();
     checkTermination();
-    gameSleep(5); // rallentiamo il gioco
+    //gameSleep(3); // rallentiamo il gioco
     if(tick != newtick) {
         tick = newtick;
         ticked = true;
-    }
+    } else 
+        gameSleep(4);
+    printf("Check tick is %d\n", ticked);
     return ticked;
 }
 
 void mainLoop(void) {
+    currentState = 1;
     while(!gameReset) {
         if(checkTick())
         {
-            mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
+            di();
+            maxState = 1;
+            //mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
+            savedState = currentState;
+            currentState = 0;
         }
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
-        funToCall &= 0x1f;
-//        printf("Calling %d\n", funToCall);
+        printf("Calling %d\n", funToCall);
 #endif
         mainJumpTable[funToCall](states[currentState]);
         newActor();
@@ -306,6 +311,7 @@ void initFlipped() {
 
 void newGame(void) {
     srand(time(NULL));
+    maxState = 0x0c;
     playerLevel = 0;
     playerLives = 4;
     rocketReset();
@@ -332,7 +338,7 @@ void addPointsToScore(byte b) {
     *score += b;
     if(*score > 999999) 
         *score = 999999;
-    showScore(1, xpos[currentPlayerNumber ? 1 : 0], *score);
+    showScore(8, xpos[currentPlayerNumber ? 1 : 0], *score);
 }
 
 void resetScreen(void){
@@ -365,6 +371,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
+    gameSleep(20000);
     // do nothing
 }
 
@@ -560,14 +567,17 @@ void gamePlayStarts(State* cur){
 
 bool alienCollision(State* state) {
     bool ret = false;
-    if(!jetmanState.direction.fly) {
+    byte dir = jetmanState.spriteIndex & 0x3f - 1;
+    if(dir) 
+        --dir;
+    if(!dir) {
         sbyte distance = byteAbs(jetmanState.x - state->x);
-        if(distance < 12) {
+        if(distance < 0xc) {
             distance = jetmanState.y - state->y;
-            sbyte thres = 21;
+            sbyte thres = 0x15;
             if(distance < 0) {
                 thres = state->height;
-                distance = byteAbs(distance);
+                distance = byteAbs(distance) + 0xe;
             }
             ret = (distance < thres);
         }
@@ -853,7 +863,6 @@ void jetmanWalkOffPlatform(State* cur) {
 
 void jetmanWalk(State* cur){
     actorSaveSpritePos(cur);
-    printf("Jetman speed is %d\n", cur->xspeed);
     enum KeyboardResult res = readInputLR();
     switch(res) {
         case Right:
@@ -897,14 +906,12 @@ void jetmanWalk(State* cur){
 void meteorUpdate(State* cur){
     actorSaveSpritePos(cur);
     ++currentAlienNumber;
-    byte x = cur->x;
-    if((cur->frame & 0x40) != 0){
-        x -= cur->xspeed;
+    if(cur->moving.rl){
+        cur->x -= cur->xspeed;
     }
     else{
-        x += cur->xspeed;
+        cur->x += cur->xspeed;
     }
-    cur->x = x;
     cur->y += cur->yspeed;
     updateAndEraseActor(cur);
     colorizeSprite(cur);
@@ -933,11 +940,11 @@ void pickupRocketItem(State* cur) {
     byte a = cur->jumpTableOffset;
     if(a == 0x18) {
         if(cur->y < 0xb0) {
-            cur->y -= 2;
+            cur->y += 2;
             redrawSprite(cur);
             return;
         } else {
-            ++rocketState.state;
+            ++rocketState.fuelCollected;
         }
     } else {
         a <<= 1;
@@ -1069,10 +1076,10 @@ byte itemCalcDropColumn(void) {
     return itemDropPositionTable[rand() & 0xf];    
 }
 
-static bool invalidJetmanState() {
+static inline bool invalidJetmanState() {
     return (
-        jetmanState.utype == 0 ||
-        (jetmanState.utype & 0x3f) >= 3
+        jetmanState.spriteIndex == 0 ||
+        (jetmanState.spriteIndex & 0x3f) >= 3
     );
 }
 
@@ -1081,7 +1088,7 @@ void itemNewFuelPod() {
         invalidJetmanState() || // impossible?  
         rocketModuleState.type != RMUnused ||
         rocketState.fuelCollected >= 6 ||
-        (getGameTime() & 0xf) != 0
+        (~getGameTime() & 0xf) != 0
     ) {
         return;
     }
@@ -1107,8 +1114,14 @@ void itemNewCollectible() {
 
 void newActor(void){
     ++currentState;
-    if(currentState > maxState) {  // @FIX self modifying code
+    if(currentState > maxState) {  
         while(isKeyDown(keyPause));
+        if(maxState == 1) {
+            maxState = 0x0b;
+            currentState = savedState;
+            ei();
+            return;
+        }
         byte r = byteRand();
 #ifndef NDEBUG
         bool aliens = true;
@@ -1128,22 +1141,22 @@ void newActor(void){
                 if(alienState[b].type == RMUnused) {
                     alienState[b] = defaultAlienState;
                     r = (byteRand() & 1 ? 0x40 : 0); 
-                    alienState[b].frame = r; //moving
-                    alienState[b].utype = r; //direction
+                    alienState[b].umoving = r; //moving
+                    alienState[b].spriteIndex = r; //direction
                     r = (byteRand() & 0x7f) + 0x28;
                     alienState[b].y = r;
                     r = byteRand() & 0x3 + 2;
                     alienState[b].color = r;
-                    alienState[b].jumpTableOffset = (r & 1);
+                    alienState[b].yspeed = (r & 1);
                     r = itemLevelObjectTypes[playerLevel & 0x07];
                     r |= (alienState[b].utype & 0xc0);
-                    alienState[b].utype = r;
+                    alienState[b].spriteIndex = r;
                     break;
                 }
             }
         }
         itemNewFuelPod();
         itemNewCollectible();
-        currentState = 0;
+        currentState = 1;
     }
 }
