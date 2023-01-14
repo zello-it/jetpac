@@ -88,8 +88,8 @@ static Coords actorUpdate(State* state, Sprite* sprite) {
 
 
 Sprite* getSpriteAddress(byte x, byte header) {
-    if(header & 0x40) {  // maybe 0x20... Qui entra x come offset. I bytes alti escono 
-        x |= 0x8;        // per effetto dello shift (o del rlca maskato con f0)
+    if(header & 0x40) {  // Considera la direzione 
+        x |= 0x8;        
     }
     --header;
     byte index = (header << 4) | x; // il mask (& 0xf0) non serve, non stiamo ruotando
@@ -212,9 +212,9 @@ void getCollectibleID(State* state) {
 void colorizeSprite(State* state) {
    Attrib a = {.attrib = state->color};
    for(byte w = 0; w < actor.width; ++w ) {
-    byte col = (state->x /8 + w) % 32;
+    byte col = (actorCoords.x /8 + w) % 32;
     for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
-        byte row = (byte)(state->y / 8 - h) % 24;
+        byte row = (byte)(actorCoords.y / 8 - h) % 24;
         setAttrib(col, row, a);
     }
    } 

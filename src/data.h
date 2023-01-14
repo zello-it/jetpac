@@ -36,6 +36,10 @@ static inline char* numToChar(int num) {
     return ret;
 }
 
+static inline byte umin(byte one, byte two) {
+    return (one < two ? one : two);
+}
+
 // data types
 
 extern uint32_t hiScore;
@@ -102,7 +106,6 @@ typedef struct {
         enum Animating animating;
         Direction direction;
         enum RMType type;
-        byte utype;
         byte spriteIndex;
     };
     byte x;
