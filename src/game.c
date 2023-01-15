@@ -208,7 +208,7 @@ void drawPlatforms() {
             coords.x = platform->x - (width & 0xfc) + 0x10;
             coords.y = platform->y;
             squareOut(coords, tilePlatformLeft, attrib);
-            byte counter = platform->width / 4 - 4;
+            byte counter = (platform->width >> 2) - 4;
             while(counter-- > 0) {
                 coords.x += 8;
                 squareOut(coords, tilePlatformMiddle, attrib);
@@ -286,7 +286,7 @@ void mainLoop(void) {
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
-        printf("Calling %d on sprite idx %d\n", funToCall, currentState & 0x3f);
+//        printf("Calling %d on sprite idx %d\n", funToCall, currentState & 0x3f);
 #endif
         mainJumpTable[funToCall](states[currentState]);
         newActor();
@@ -585,31 +585,33 @@ byte checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
     for(byte b = 0; b < 4; ++b) {
         eRet = 0;
         GFXParams* platform = &gfxParamsPlatforms[b];
+        if(state == &jetmanState && b == 0) {
+            printf("Plat %d, StateY %d, platformY %d\n", b, state->y, platform->y);
+        }
         sbyte diff = platform->x - state->x;
         if(diff >= 0) {
             // L75D1
-            if((state->spriteIndex & 0x3f) == 3)
+            if((state->spriteIndex & 0x3f) == 3 && diff >=9)
             {
-                if(diff >= 9)
-                    diff -= 9;
+                diff -= 9;
             }
         }
         else {
             diff = byteAbs(diff);
-            eRet |= 0x40;
+            eRet |= 0x40;           // platform is on the right
         }
-        if(diff >= platform->width) {
+        if((byte)diff >= platform->width) {   // we don't hit (platform->x is coord right?)
             continue;
         }
         diff += 0x12;
-        if(diff >= platform->width) {
+        if((byte)diff >= platform->width) {
             eRet |= 8;
         }
         diff = state->y - platform->y + 2;
         if(diff < 0) // no hit
             continue;
         if(diff < 2) {// hit from above, Y_2
-            eRet = 0x84;
+            eRet |= 0x84;
             break;
         } else if(diff < state->height) { // hit from below
             eRet |= 0x4;

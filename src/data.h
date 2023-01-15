@@ -234,11 +234,11 @@ typedef struct {
     union {
         Coords coords;
         struct {
-            byte x;
+            byte x; // right x coord / 2 - tile
             byte y;
         };
     };
-    byte width;
+    byte width;  // (width + tile) / 2
 } GFXParams;
 extern GFXParams gfxParamsPlatforms[4];
 extern State defaultPlayerState;

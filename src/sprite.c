@@ -25,7 +25,7 @@ static void actorEraseMovedSprite(SpriteData* oldSprite, SpriteData* newSprite) 
             // register are swapped!!
             maskSprite(newSprite, oldSprite);
         } else {
-            oldSprite->height = actor.gfxDtaHeight;
+            newSprite->height = actor.gfxDtaHeight;
             actor.gfxDtaHeight = actor.gfxDtaHeight - diff;
             maskSprite(oldSprite, newSprite);
         }
@@ -48,22 +48,23 @@ static void actorEraseMovedSprite(SpriteData* oldSprite, SpriteData* newSprite) 
 
 
 static void actorEraseDestroyed(State* state, Sprite* sprite, Coords coords) {
-    byte c = actor.height;
+    byte c = actor.spriteHeight;
     actor.gfxDtaHeight = 0;
     actor.height = 0;
     SpriteData sd = {
         .spritedata = sprite->data,
         .coords = coords,
         .height = c,
-        .width = actor.width
+        .width = sprite->width
     };
     maskSprite(&sd, NULL);
 }
 
 static void writeSprite(SpriteData* sd, enum Operator op) {
+    byte* ptr = sd->spritedata;
     while(sd->height--) {
         for(byte col = 0; col < sd->width; ++col) {
-            byte out = *sd->spritedata++;
+            byte out = *ptr++;
             if(op == AND)
                 out = ~out;
             byteOutNoLock(
@@ -211,12 +212,13 @@ void getCollectibleID(State* state) {
 
 void colorizeSprite(State* state) {
    Attrib a = {.attrib = state->color};
-   for(byte w = 0; w < actor.width; ++w ) {
-    byte col = (actorCoords.x /8 + w) % 32;
-    for(byte h = 0; h < (actor.height + 4) / 8; ++h) {
-        byte row = (byte)(actorCoords.y / 8 - h) % 24;
-        setAttrib(col, row, a);
-    }
+   for(byte h = 0; h <= (actor.height + 4) / 8; ++h) {
+        byte row = (byte)(actorCoords.y / 8 - h);
+        if(row > 23) continue;
+        for(byte w = 0; w < actor.width; ++w ) {
+            byte col = (actorCoords.x / 8 + w) % 32;
+            setAttrib(col, row, a);
+        }
    } 
 }
 
