@@ -1076,7 +1076,7 @@ void laserBeamAnimate(State* cur){
     // LaserBeamAnimate_3
     for(byte p = 0; p < 3; ++p) {
         byte b_1 = 0x03, c_1 = 0x1c, e_1 = 0xe0;
-        byte* pulse = &laser[p + 1];
+        byte* pulse = &laser->x[p + 1];
         // shit...
     }
 }
