@@ -1058,12 +1058,13 @@ void ufoUpdate(State* cur){}
 void laserBeamAnimate(State* cur){
     LaserBeam* laser = (LaserBeam*) cur;
     if(laser->x[0] & 0x4) {
-        sbyte a = (laser->x[0] ? 8 : -8);
+        sbyte a = (laser->x[0] ? -8 : 8);
         Coords c = {.x = laser->x[0], .y = laser->y};
-        if(c.y < 0x80 && getVideoByte(c)) {
+        if(c.y < 0x80 && getVideoByte(c) != 0) {
             // LaserBeamAnimate_5
             laser->x[0] &= ~0x4;
         } else {
+            // LaserBeamAnimate_1
             laser->x[0] += a;
             byteOut(c, 0xff, EQUAL);
             setAttrib(c.x >> 3, c.y >> 3, (Attrib){.attrib = laser->color});
@@ -1074,10 +1075,40 @@ void laserBeamAnimate(State* cur){
         }
     } // else LaserBeamAnimate_3
     // LaserBeamAnimate_3
+    byte b_1 = 0x03, c_1 = 0x1c, e_1 = 0xe0;
     for(byte p = 0; p < 3; ++p) {
-        byte b_1 = 0x03, c_1 = 0x1c, e_1 = 0xe0;
         byte* pulse = &laser->x[p + 1];
-        // shit...
+        // LaserBeamAnimate_4
+        byte a = (*pulse ^ laser->x[0]) & 0xf8;
+        if(!a) {
+            //LaserBeamAnimate_6
+            a = *pulse;
+            if(a & 4) {
+                // LaserBeamAnimate_7
+                byte offs = (a & 1 ? 8 : -8);
+                *pulse += offs;
+                a = b_1;
+                b_1 = c_1;
+                c_1 = e_1;
+                Coords old = {.x = a, .y = laser->y};
+                byteOut(old, a, AND);
+            } else {
+                if((--laser->length & 0x7) != 0)
+                    break; // fast ret
+                a = byteRand() & 0x3 | 0x4;
+                laser->length |= a;
+                *pulse |= 4;
+                break; // fast ret
+            }
+        } else {
+            a = b_1; 
+            b_1 = c_1;
+            c_1 = e_1;
+            if(p == 2) {
+                laser->used = 0;
+                break; //fast ret
+            }
+        }
     }
 }
 void squidgyAlienUpdate(State* cur){}
