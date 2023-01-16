@@ -32,11 +32,14 @@ byte playerLevel;
 byte playerLives;
 byte inactivePlayerLevel;
 byte inactivePlayerLives;
-byte jetmanFlyCounter;
 
 State padding = {0, 0, 0, 0, 0, 0, 0, 0};
 // state array
 State* states[] = {
+   (State*)&laserBeamParam[0],
+   (State*)&laserBeamParam[1],
+   (State*)&laserBeamParam[2],
+   (State*)&laserBeamParam[3],
    &rocketState,                 //0
    &rocketModuleState,           //1
    &itemState,                   //2

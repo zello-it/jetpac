@@ -89,7 +89,7 @@ enum RMType {
 enum RMState {
     Free = 1,
     Carrying = 2,
-    Pickup = 4,
+    Drop = 4,
  //   FreeFall = 5,
  //   Dropped = 7
 };
@@ -140,7 +140,7 @@ typedef struct {
     enum LaserBeamUsed used;
     byte y;
     byte x[4];
-    byte lenght;
+    byte length;
     byte color;
 } LaserBeam;
 
@@ -183,11 +183,11 @@ typedef struct {
     byte width;  //tiles
     byte spriteHeight;
     byte gfxDtaHeight;
-    byte flyingMovement;
+    byte xSpeedDecimal;
+    byte ySpeedDecimal;
 } ActorTempState;
 
 extern ActorTempState actor;
-extern byte jetmanFlyCounter;
 extern byte alienNewDirFlag;
 
 extern byte jetmanSpeedModifier;

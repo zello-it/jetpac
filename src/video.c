@@ -351,6 +351,14 @@ void byteOut(Coords coords, const byte byte1, enum Operator op) {
 	unlockVideo();
 }
 
+byte getVideoByte(Coords coords) {
+	lockVideo();
+	byte b = video[coords.y][coords.x / 8];
+	unlockVideo();
+	return b;
+}
+
+
 word getGameTime(){
 	word ret = atomic_load(&gameTime);
 	return ret;

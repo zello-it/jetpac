@@ -26,6 +26,7 @@ void textOutAttrib(Coords coords, const char* msg, Attrib attrib);
 void textOut(Coords coords, const char* msg); 
 void setAttrib(byte col, byte row, Attrib attrib);
 Attrib getAttrib(byte col, byte row);
+byte getVideoByte(Coords coords);
 void squareOut(Coords coords, const byte* square, Attrib attrib);
 void lockVideo();
 void unlockVideo();

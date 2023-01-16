@@ -98,7 +98,6 @@ void resetGlobals(void) {
     bufferItems[2].data = buffers[6];
     bufferItems[3].data = buffers[7];
     bzero(buffers, sizeof(buffers));
-    jetmanFlyCounter = 0;
 }
 
 
@@ -399,19 +398,19 @@ void jetmanCollision(State* cur) {
 }
 
 void jetmanFlyVertical(State* cur) {
-    word speedy = 3 * cur->yspeed;
-    word offset = ((word)(cur->y) << 8) | jetmanFlyCounter;
+    word speedy = 8 * (word)(cur->yspeed);
+    word y = ((word)(cur->y) << 8) | actor.ySpeedDecimal;
     if(cur->moving.ud)
-        speedy += offset;
+        y += speedy;
     else
-        speedy = offset - speedy;
-    jetmanFlyCounter = (byte) speedy;
-    cur->y = (speedy >> 8) & 0xff;
+        y = y - speedy;
+    actor.ySpeedDecimal = (byte) y;
+    cur->y = (y >> 8);
     if(cur->y >= 0xc0){ 
         cur->moving.ud = 0;
     } else if(cur->y < 0x2a) {
         cur->moving.ud = 1;
-        byte a = cur->yspeed << 1;
+        byte a = cur->yspeed >> 1;
         if(a) {
             cur->yspeed = a;
         }
@@ -431,15 +430,14 @@ void jetmanDirFlipY(State* cur) {
 }
 
 void jetmanFlyHorizontal(State* cur) {
-    word xspeed = cur->xspeed * 3;
-    //printf("xspeed = %d, speed = %x\n", cur->xspeed, xspeed);
-    word xpos = (cur->x << 8) | actor.flyingMovement;
+    word xspeed = (word)(cur->xspeed) * 8;
+    word xpos = (cur->x << 8) | actor.xSpeedDecimal;
     if(cur->moving.rl) {
         xpos -= xspeed;
     } else {
         xpos += xspeed;
     }
-    actor.flyingMovement = (byte) (xpos & 0x00ff);
+    actor.xSpeedDecimal = (byte) (xpos & 0x00ff);
     cur->x = (byte)((xpos & 0xff00) >> 8);
     if(readInputHover() == Hover) {
         cur->yspeed = 0;
@@ -450,9 +448,8 @@ void jetmanFlyHorizontal(State* cur) {
         cur->spriteIndex |= 0x80;
         if(cur->moving.ud) {
             //jetmanSpeedIncY
-            sbyte speed = 8 - jetmanSpeedModifier + cur->yspeed;
-            if(speed > 0x3f) speed = 0x3f;
-            cur->yspeed = speed;
+            byte speed = cur->yspeed + 8 - jetmanSpeedModifier;
+            cur->yspeed = umin(speed, 0x3f); //3f?
             jetmanFlyVertical(cur);
         } else {
             jetmanDirFlipY(cur);
@@ -562,12 +559,9 @@ void gamePlayStarts(State* cur){
 
 bool alienCollision(State* state) {
     bool ret = false;
-    byte dir = jetmanState.spriteIndex & 0x3f - 1;
-    if(dir) 
-        --dir;
-    if(!dir) {
+    if((jetmanState.direction.fly || jetmanState.direction.walk) && jetmanState.direction.unused == 0) {
         sbyte distance = byteAbs(jetmanState.x - state->x);
-        if(distance < 0xc) {
+        if((byte)distance < 0xc) {
             distance = jetmanState.y - state->y;
             sbyte thres = 0x15;
             if(distance < 0) {
@@ -585,9 +579,6 @@ byte checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
     for(byte b = 0; b < 4; ++b) {
         eRet = 0;
         GFXParams* platform = &gfxParamsPlatforms[b];
-        if(state == &jetmanState && b == 0) {
-            printf("Plat %d, StateY %d, platformY %d\n", b, state->y, platform->y);
-        }
         sbyte diff = platform->x - state->x;
         if(diff >= 0) {
             // L75D1
@@ -797,7 +788,7 @@ void laserBeamDraw(LaserBeam* laser, byte x) {
     for(byte b = 1; b < 4; ++b) {
         laser->x[b] = x;
     }
-    laser->lenght = byteRand() & 0x38 | 0x84;
+    laser->length = byteRand() & 0x38 | 0x84;
     laser->color = laserBeamColors[byteRand() & 0x3];
     sfxLaserFire();
 }
@@ -809,7 +800,6 @@ void laserBeamShootRight(LaserBeam* laserBeam) {
     }
     x += 0x10;
     x &= 0xfe;
-    laserBeamDraw(laserBeam, x);
 }
 
 void laserBeamInit(LaserBeam* laserBeam) {
@@ -963,9 +953,9 @@ void pickupRocketItem(State* cur) {
 void carryRocketItem(State* cur){
     cur->x = jetmanState.x;
     cur->y = jetmanState.y;
-    sbyte diff = byteAbs(rocketState.x - cur->x);
+    byte diff = byteAbs(rocketState.x - cur->x);
     if(diff < 6) {
-        cur->state |= Pickup;
+        cur->state |= Drop;
         cur->x = rocketState.x;
     }
     redrawSprite(cur);
@@ -989,7 +979,7 @@ void collectRocketItem(State* cur) {
 void collisionDetection(State* cur){
     actorSaveSpritePos(cur);
     enum RMState curstate = cur->state;
-    if(curstate & Pickup) {
+    if(curstate & Drop) {
         pickupRocketItem(cur);
     } 
     else if (curstate & Carrying) {
@@ -1065,7 +1055,31 @@ void sfxEnemyDeath(State* cur){}
 void sfxJetmanDeath(State* cur){}
 void itemCheckCollect(State* cur){}
 void ufoUpdate(State* cur){}
-void laserBeamAnimate(State* cur){}
+void laserBeamAnimate(State* cur){
+    LaserBeam* laser = (LaserBeam*) cur;
+    if(laser->x[0] & 0x4) {
+        sbyte a = (laser->x[0] ? 8 : -8);
+        Coords c = {.x = laser->x[0], .y = laser->y};
+        if(c.y < 0x80 && getVideoByte(c)) {
+            // LaserBeamAnimate_5
+            laser->x[0] &= ~0x4;
+        } else {
+            laser->x[0] += a;
+            byteOut(c, 0xff, EQUAL);
+            setAttrib(c.x >> 3, c.y >> 3, (Attrib){.attrib = laser->color});
+            laser->length -= 0x08;
+            if((laser->length & 0xf8) == 0) {
+                laser->x[0] &= ~0x4;
+            }
+        }
+    } // else LaserBeamAnimate_3
+    // LaserBeamAnimate_3
+    for(byte p = 0; p < 3; ++p) {
+        byte b_1 = 0x03, c_1 = 0x1c, e_1 = 0xe0;
+        byte* pulse = &laser[p + 1];
+        // shit...
+    }
+}
 void squidgyAlienUpdate(State* cur){}
 
 byte itemCalcDropColumn(void) {
