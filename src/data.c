@@ -36,23 +36,23 @@ byte inactivePlayerLives;
 State padding = {0, 0, 0, 0, 0, 0, 0, 0};
 // state array
 State* states[] = {
-   (State*)&laserBeamParam[0],
-   (State*)&laserBeamParam[1],
-   (State*)&laserBeamParam[2],
-   (State*)&laserBeamParam[3],
-   &rocketState,                 //0
-   &rocketModuleState,           //1
-   &itemState,                   //2
-   &jetmanThrusterAnimState,     //3
-   &alienState[0],               //4
-   &alienState[1],               //5
-   &alienState[2],               //6
-   &alienState[3],               //7
-   &alienState[4],               //8
-   &alienState[5],               //9
-   &jetmanExplodingAnimState,    //10 0xa
-   &inactiveJetmanState,         //11 0xb
-   &padding,                     //12 0xc
+   (State*)&laserBeamParam[0],   //0
+   (State*)&laserBeamParam[1],   //1
+   (State*)&laserBeamParam[2],   //2
+   (State*)&laserBeamParam[3],   //3
+   &rocketState,                 //4
+   &rocketModuleState,           //5
+   &itemState,                   //6
+   &jetmanThrusterAnimState,     //7
+   &alienState[0],               //8
+   &alienState[1],               //9
+   &alienState[2],               //10 a
+   &alienState[3],               //11 b
+   &alienState[4],               //12 c
+   &alienState[5],               //13 d
+   &jetmanExplodingAnimState,    //14 e
+   &inactiveJetmanState,         //15 f
+   &padding,                     //16 10
    &inactiveRocketState[0],
    &inactiveRocketState[1],
    &inactiveRocketState[2],
@@ -61,7 +61,7 @@ State* states[] = {
    &padding
 };
 byte currentState;
-byte maxState = 0x0c;
+byte maxState = 0xf;
 
 // inizialized data
 GFXParams gfxParamsPlatforms[] = {

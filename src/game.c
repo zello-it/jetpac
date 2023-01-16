@@ -664,6 +664,7 @@ void explosionAfterKill() {
     jetmanExplodingAnimState.y = jetmanState.y;
     jetmanExplodingAnimState.animByte = 1;
     enableAnimationState(&jetmanExplodingAnimState, jetmanState.spriteIndex);
+    jetmanState.spriteIndex = 0;
 }
 
 void alienCollisionAnimSfx(State* state) {
@@ -1159,7 +1160,7 @@ void newActor(void){
         while(isKeyDown(keyPause));
         byte r = byteRand();
 #ifndef NDEBUG
-        bool aliens = true;
+        bool aliens = false;
 #else
         bool aliens = true;
 #endif
