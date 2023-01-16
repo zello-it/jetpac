@@ -365,7 +365,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
-    gameSleep(2000);
+    gameSleep(8000);
     // do nothing
 }
 
@@ -1159,7 +1159,7 @@ void newActor(void){
         while(isKeyDown(keyPause));
         byte r = byteRand();
 #ifndef NDEBUG
-        bool aliens = false;
+        bool aliens = true;
 #else
         bool aliens = true;
 #endif
