@@ -45,11 +45,11 @@ Fun mainJumpTable[] = {
     rocketUpdate,
     rocketTakeoff,
     rocketLanding,
-    sfxEnemyDeath,          //12
+    sfxEnemyDeath,          //12 0xc
     sfxJetmanDeath,
     itemCheckCollect,
     ufoUpdate,
-    laserBeamAnimate,       //16
+    laserBeamAnimate,       //16 0x10 
     squidgyAlienUpdate
 };
 
@@ -305,7 +305,7 @@ void initFlipped() {
 
 void newGame(void) {
     srand(time(NULL));
-    maxState = 0x0c;
+    maxState = 0x0f;
     playerLevel = 0;
     playerLives = 4;
     rocketReset();
@@ -365,7 +365,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
-    gameSleep(8000);
+    gameSleep(5000);
     // do nothing
 }
 
@@ -702,8 +702,8 @@ void displayGameOver() {
 }
 
 void playerTurnEnds(State* state) {
-#define IDXFROM 3
-#define IDXTO  0xc
+#define IDXFROM 7
+#define IDXTO  maxState
    
     for(byte b = IDXFROM; b <= IDXTO; ++b) {
         states[b]->spriteIndex = 0;
@@ -789,7 +789,7 @@ void laserBeamDraw(LaserBeam* laser, byte x) {
     for(byte b = 1; b < 4; ++b) {
         laser->x[b] = x;
     }
-    laser->length = byteRand() & 0x38 | 0x84;
+    laser->length = (byteRand() & 0x38) | 0x84;
     laser->color = laserBeamColors[byteRand() & 0x3];
     sfxLaserFire();
 }
@@ -806,7 +806,7 @@ void laserBeamShootRight(LaserBeam* laserBeam) {
 void laserBeamInit(LaserBeam* laserBeam) {
     laserBeam->used = LBUsed;
     byte dir = jetmanState.spriteIndex;
-    byte x = jetmanState.x & 0xf8 | 0x5;
+    byte x = (jetmanState.x & 0xf8) | 0x5;
     if(dir & 0x40) {
         laserBeamShootRight(laserBeam);
     } else {
@@ -899,7 +899,7 @@ void meteorUpdate(State* cur){
     else{
         cur->x += cur->xspeed;
     }
-    cur->y += cur->yspeed;
+    cur->y += cur->yspeed; 
     updateAndEraseActor(cur);
     colorizeSprite(cur);
     if(checkPlatformCollision(cur) & 0x4) {
@@ -1059,14 +1059,14 @@ void ufoUpdate(State* cur){}
 void laserBeamAnimate(State* cur){
     LaserBeam* laser = (LaserBeam*) cur;
     if(laser->x[0] & 0x4) {
-        sbyte a = (laser->x[0] ? -8 : 8);
+        sbyte a = ((laser->x[0] & 0x1) ? -8 : 8) + laser->x[0];
         Coords c = {.x = laser->x[0], .y = laser->y};
         if(c.y < 0x80 && getVideoByte(c) != 0) {
             // LaserBeamAnimate_5
             laser->x[0] &= ~0x4;
         } else {
             // LaserBeamAnimate_1
-            laser->x[0] += a;
+            laser->x[0] = a;
             byteOut(c, 0xff, EQUAL);
             setAttrib(c.x >> 3, c.y >> 3, (Attrib){.attrib = laser->color});
             laser->length -= 0x08;
@@ -1080,7 +1080,7 @@ void laserBeamAnimate(State* cur){
     for(byte p = 0; p < 3; ++p) {
         byte* pulse = &laser->x[p + 1];
         // LaserBeamAnimate_4
-        byte a = (*pulse ^ laser->x[0]) & 0xf8;
+        byte a = ((*pulse) ^ (laser->x[0])) & 0xf8;
         if(!a) {
             //LaserBeamAnimate_6
             a = *pulse;
@@ -1088,15 +1088,15 @@ void laserBeamAnimate(State* cur){
                 // LaserBeamAnimate_7
                 byte offs = (a & 1 ? 8 : -8);
                 *pulse += offs;
+                Coords old = {.x = a, .y = laser->y};
                 a = b_1;
                 b_1 = c_1;
                 c_1 = e_1;
-                Coords old = {.x = a, .y = laser->y};
                 byteOut(old, a, AND);
             } else {
                 if((--laser->length & 0x7) != 0)
                     break; // fast ret
-                a = byteRand() & 0x3 | 0x4;
+                a = (byteRand() & 0x3) | 0x4;
                 laser->length |= a;
                 *pulse |= 4;
                 break; // fast ret
@@ -1160,17 +1160,17 @@ void newActor(void){
         while(isKeyDown(keyPause));
         byte r = byteRand();
 #ifndef NDEBUG
-        bool aliens = false;
+        bool aliens = true;
 #else
         bool aliens = true;
 #endif
         if(
             aliens && (
-            (r > 32 || currentAlienNumber > 3) || 
-            currentAlienNumber <= 6 ||
-            playerDelayCounter == 0 ||
+                ( currentAlienNumber < 3) || 
+                (!(r & 0x1f) && currentAlienNumber < 6)
+             ) &&
+            playerDelayCounter == 0 &&
             jetmanState.direction.fly == 0
-            )
         )
         {
             for(byte b = 0; b < array_sizeof(alienState); ++b) {
@@ -1181,7 +1181,7 @@ void newActor(void){
                     alienState[b].spriteIndex = r; //direction
                     r = (byteRand() & 0x7f) + 0x28;
                     alienState[b].y = r;
-                    r = byteRand() & 0x3 + 2;
+                    r = (byteRand() & 0x3) + 2;
                     alienState[b].color = r;
                     alienState[b].yspeed = (r & 1);
                     r = itemLevelObjectTypes[playerLevel & 0x07];
@@ -1194,5 +1194,6 @@ void newActor(void){
         itemNewFuelPod();
         itemNewCollectible();
         currentState = 0;
+        currentAlienNumber = 0;
     }
 }

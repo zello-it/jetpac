@@ -61,7 +61,7 @@ State* states[] = {
    &padding
 };
 byte currentState;
-byte maxState = 0xf;
+byte maxState = 0x0f;
 
 // inizialized data
 GFXParams gfxParamsPlatforms[] = {
