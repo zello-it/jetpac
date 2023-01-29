@@ -709,8 +709,9 @@ void playerTurnEnds(State* state) {
     for(byte b = IDXFROM; b <= IDXTO; ++b) {
         states[b]->spriteIndex = 0;
     }
-    rocketModuleState.state &= ~Carrying;
-    itemState.state &= ~Carrying;
+    rocketModuleState.state &= ~2;
+    itemState.state &= ~2;
+    printf("rocketmodstate %x, itemstate %x\n", rocketModuleState.state, itemState.state);
     if(gameOptions.players) {
         if(inactivePlayerLives) {
             if(!playerLives) {
@@ -1035,7 +1036,7 @@ void collisionDetection(State* cur){
     else if (curstate & Carrying) {
         carryRocketItem(cur);
     }
-    else if(curstate != Free) {
+    else if(!(curstate & Free)) {
         getCollectibleID(cur);
     }
     else {
@@ -1189,7 +1190,12 @@ void rocketAnimateFlames(State* cur) {
 }
 
 void rocketModuleReset() {
-    rocketModuleState = (State){0};
+    // zero from rocketModuleState to inactiveJetmanState
+    #define FRM 5
+    #define FTO 0xf
+    for(int i = FRM; i <= FTO; ++i) {
+        states[i]->spriteIndex = 0;
+    }
 }
 
 void rocketTakeoff(State* cur){
@@ -1317,6 +1323,9 @@ void squidgyAlienUpdate(State* cur){
     alienNewDirFlag = 0;
     while(alienNewDirFlag < 2) {
         byte e = checkPlatformCollision(cur);
+        if(e) {
+            printf("e is %x\n", e);
+        }
         if(e & 0x84) {
             cur->moving.ud = 0;
         }
