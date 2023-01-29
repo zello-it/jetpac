@@ -60,3 +60,28 @@ void colorizeSprite(State* state);
  * Redraw a sprite
 */
 void redrawSprite(State* cur);
+
+/**
+ * Draw a sprite item (collectibles)
+*/
+void itemDrawSprite(State * cur);
+
+/**
+ * get sprite address (collectibles)
+*/
+Sprite* itemGetSpriteAddress(byte offset);
+
+/**
+ * Destroy Actor
+*/
+void actorDestroy(State* cur, Sprite* spr);
+
+/**
+ * ActorUpdate + EraseAnimationSprite
+*/
+void drawAnimSprite(State* cur, Sprite* sprite);
+
+/**
+ * Draw alien
+*/
+void drawAlien(State* cur);

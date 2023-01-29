@@ -557,14 +557,15 @@ void gamePlayStarts(State* cur){
 }
 
 
-bool alienCollision(State* state) {
+bool collisionWithJetman(State* state) {
     bool ret = false;
-    if((jetmanState.direction.fly || jetmanState.direction.walk) && jetmanState.direction.unused == 0) {
-        sbyte distance = byteAbs(jetmanState.x - state->x);
-        if((byte)distance < 0xc) {
+    byte jstate = jetmanState.spriteIndex & 0x3f;
+    if(jstate == 1 || jstate == 2 ) {
+        byte distance = byteAbs(jetmanState.x - state->x);
+        if(distance < 0xc) {
             distance = jetmanState.y - state->y;
             sbyte thres = 0x15;
-            if(distance < 0) {
+            if((sbyte)distance < 0) {
                 thres = state->height;
                 distance = byteAbs(distance) + 0xe;
             }
@@ -619,7 +620,7 @@ byte laserBeamFire(State* state) {
     byte cRet = 0;
     for(byte b = 0; b < array_sizeof(laserBeamParam);  ++b) {
         LaserBeam* beam = &laserBeamParam[b];
-        if(beam->used == LBUnused) {
+        if(beam->used != LBUnused) {
             byte a = beam->x[1];
             if(a & 0x4){
                 sbyte diff = (a & 0xf8) - state->x;
@@ -708,8 +709,8 @@ void playerTurnEnds(State* state) {
     for(byte b = IDXFROM; b <= IDXTO; ++b) {
         states[b]->spriteIndex = 0;
     }
-    rocketModuleState.state &= ~1;
-    itemState.state &= ~1;
+    rocketModuleState.state &= ~Carrying;
+    itemState.state &= ~Carrying;
     if(gameOptions.players) {
         if(inactivePlayerLives) {
             if(!playerLives) {
@@ -775,6 +776,48 @@ void updateRocketColor(State* state) {
     state->color = attr.attrib;
     do_updateRocketColor(state, counter);
 }
+
+void itemDropGoldBar(State* cur){
+    cur->color = 0x46;
+    itemDrawSprite(cur);
+}
+void itemDropChemical(State* cur){
+    if((getGameTime() & 0x1f) < 18) {
+        cur->color = 0;
+    }
+    else {
+        cur->color = 0x45;
+    }
+    itemDrawSprite(cur);
+}
+void itemDropPlutonium(State* cur){
+    cur->color = 0x44;
+    itemDrawSprite(cur);
+}
+void itemDropRandomColor(State* cur){
+    byte col = getGameTime();
+    col >>= 2;
+    col &= 7;
+    if(!col) 
+        ++col;
+    col |= 0x40;
+    cur->color = col;
+    itemDrawSprite(cur);
+}
+
+void itemDropNew(State* cur) {
+    typedef void(*DropFun)(State*);
+    DropFun dropFun[] = {
+        itemDropGoldBar,
+        itemDropChemical,
+        itemDropChemical,
+        itemDropPlutonium,
+        itemDropRandomColor
+    };
+    dropFun[(cur->jumpTableOffset & 0xf) / 2](cur);
+}
+
+
 
 void sfxLaserFire() {
     byte dur = 0x08;
@@ -911,8 +954,10 @@ void meteorUpdate(State* cur){
         if(laserBeamFire(cur) != 0){
             // increase score and display: MeteorUpdate1
             addPointsToScore(25);
+            animationStateReset(cur);
+            sfxSetExplodeParam(cur, 0);
         } else {
-            if(alienCollision(cur) == 1) {
+            if(collisionWithJetman(cur) == true) {
                 // no points  and die
                 alienCollisionAnimSfx(cur);
             }
@@ -923,10 +968,13 @@ void meteorUpdate(State* cur){
 void sfxRocketBuild() {
     playSound(0x20, 0x50);
 }
+void sfxThrusters() {
+    
+}
 
 void pickupRocketItem(State* cur) {
-    byte a = cur->jumpTableOffset;
-    if(a == 0x18) {
+    byte a = cur->jumpTableOffset;  
+    if(a == 0x18) {             // fuel pod
         if(cur->y < 0xb0) {
             cur->y += 2;
             redrawSprite(cur);
@@ -991,7 +1039,7 @@ void collisionDetection(State* cur){
         getCollectibleID(cur);
     }
     else {
-        if(alienCollision(cur) == 1){
+        if(collisionWithJetman(cur) == true){
             collectRocketItem(cur);
         }
         if((checkPlatformCollision(cur) & 0x4) == 0)
@@ -1001,7 +1049,69 @@ void collisionDetection(State* cur){
 }
 void crossedShipUpdate(State* cur){}
 void sphereAlienUpdate(State* cur){}
-void jetFighterUpdate(State* cur){}
+
+void jetFighterUpdateX(State* cur, byte data) {
+    // aka jfu3
+    byte a = (data + getGameTime()) & 0x7f | 0x20;
+    cur->moving.jet_moving = 1;
+    cur->xspeed = a;
+    cur->color = 0x47;
+}
+
+void destroyFighter(State* cur) {
+   addPointsToScore(55);
+   sfxThrusters();
+   animationStateReset(cur);            
+}
+
+void jetFighterUpdate(State* cur){
+    ++currentAlienNumber;
+    actorSaveSpritePos(cur);
+    actor.spriteIndex = (cur->spriteIndex & 0xc0) | 0x3;
+    byte y = 0, x = 0;
+    if(cur->moving.jet_moving){
+        if(--cur->xspeed == 0) {
+            return destroyFighter(cur);
+        }
+        x = (cur->spriteIndex & 0x40 ? -4 : 4);
+        if(jetmanState.y >= cur->y) 
+            y = 0x2;
+        else 
+            y = -0x2;
+    } else {
+        byte a = byteRand() & 0x1f;
+        if(a == 0) {
+            jetFighterUpdateX(cur, 0);
+        }
+        a = jetmanState.y - 0xc;
+        if(a == cur->y) {
+            jetFighterUpdateX(cur, a);
+        }
+    }
+    if(getGameTime() & 0x40) {
+        y = 0x2;
+    } else {
+        y = -0x2;
+    }
+    cur->spriteIndex = (cur->spriteIndex & 0xc0) | 0x03;
+    cur->x += x;
+    cur->y += y;
+    updateAndEraseActor(cur);
+    colorizeSprite(cur);
+    if(cur->y < 0x28 || 
+        checkPlatformCollision(cur) & 0x4 ||
+        laserBeamFire(cur) == 1
+    ) {
+        return destroyFighter(cur);
+    }
+    if(collisionWithJetman(cur) == true)
+    {
+        alienCollisionAnimSfx(cur);
+        return;
+    }
+    cur->spriteIndex = cur->spriteIndex & 0xc0 | 0x07;
+}
+
 void animateExplosion(State* cur){
     ++currentAlienNumber;
     byte oldframe = cur->frame;
@@ -1039,7 +1149,7 @@ void animateExplosion(State* cur){
 
 void rocketUpdate(State* cur){
     actorSaveSpritePos(cur);  // update actor with x, y e spriteIndex
-    if(alienCollision(cur) || rocketState.fuelCollected < 6) {
+    if(collisionWithJetman(cur) == false || rocketState.fuelCollected < 6) {
         updateRocketColor(cur);
     }
     else { // level finished
@@ -1051,11 +1161,90 @@ void rocketUpdate(State* cur){
         displayAllPlayerLives();
     }
 }
-void rocketTakeoff(State* cur){}
-void rocketLanding(State* cur){}
+
+
+
+void rocketAnimateFlames(State* cur) {
+    cur->y += 0x15;
+    actor.y += 0x15;
+    Sprite* sprite = &rocket_flames1;
+    if(cur->y == 0xb8) {
+        actorDestroy(cur, &rocket_flames1);
+        actorDestroy(cur, &rocket_flames2);
+        // to raf1
+    } else if(cur->y < 0xb8) {
+        if((getGameTime() & 0x4) == 0) {
+            sprite = &rocket_flames2;
+        }
+        //RAF_0
+        actorDestroy(cur, &rocket_flames1);
+        actorDestroy(cur, &rocket_flames2);
+        drawAnimSprite(cur, sprite);
+        cur->color = 0x42;
+        colorizeSprite(cur);
+    }
+    // RAF_1
+    cur->y -= 0x15;
+    actor.y -= 0x15;
+}
+
+void rocketModuleReset() {
+    rocketModuleState = (State){0};
+}
+
+void rocketTakeoff(State* cur){
+    actorSaveSpritePos(cur);
+    --cur->y;
+    sfxThrusters();
+    rocketAnimateFlames(cur);
+    if(cur->y >= 0x28)
+    {
+        updateRocketColor(cur);
+    } else {
+        ++playerLevel;
+        rocketModuleReset();
+        ++(cur->spriteIndex);
+        cur->fuelCollected = 0;
+        levelNew();
+    }
+}
+void rocketLanding(State* cur){
+    actorSaveSpritePos(cur);
+    ++cur->y;
+    sfxThrusters();
+    rocketAnimateFlames(cur);
+    if(cur->y >= 0xb7)
+    {   
+        cur->spriteIndex = 0x9;
+        playerInit();
+    }
+    updateRocketColor(cur);
+}
 void sfxEnemyDeath(State* cur){}
 void sfxJetmanDeath(State* cur){}
-void itemCheckCollect(State* cur){}
+void itemCheckCollect(State* cur){
+    actorSaveSpritePos(cur);
+    byte ret = checkPlatformCollision(cur);
+    if(!(ret & 4))
+        cur->y += 2;
+    ret = collisionWithJetman(cur);
+    if(!ret) {
+        itemDropNew(cur);
+    } else {
+        Sprite* sprite = itemGetSpriteAddress(cur->jumpTableOffset);
+        Coords c = getSpritePosition(sprite, actor.coords);
+        SpriteData old = {
+            .coords = c,
+            .height = sprite->height,
+            .width = sprite->width,
+            .spritedata = sprite->data
+        };
+        maskSprite(&old, NULL);
+        cur->spriteIndex = 0;
+        addPointsToScore(250);
+        sfxPickupItem();
+    }
+}
 void ufoUpdate(State* cur){}
 void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
     LaserBeam* laser = (LaserBeam*) cur;
@@ -1113,7 +1302,46 @@ void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
         }
     }
 }
-void squidgyAlienUpdate(State* cur){}
+void squidgyAlienUpdate(State* cur){
+    ++currentAlienNumber;
+    actorSaveSpritePos(cur);
+    actor.spriteIndex = cur->spriteIndex & 0xc0 | 0x3;
+    if(laserBeamFire(cur) == 1) {
+        // kill alien
+        addPointsToScore(80);
+        animationStateReset(cur);
+        return sfxSetExplodeParam(cur, 0);
+    }
+    if(collisionWithJetman(cur))
+        alienCollisionAnimSfx(cur);
+    alienNewDirFlag = 0;
+    while(alienNewDirFlag < 2) {
+        byte e = checkPlatformCollision(cur);
+        if(e & 0x84) {
+            cur->moving.ud = 0;
+        }
+        else if(e & 0x14) {
+            cur->moving.ud = 1;
+        }
+        else if(e & 0x4) {
+            cur->umoving = (cur->umoving & 0xbf) | (e & 0x40);
+            // fallthrough
+        }
+        // sau1 => ! e & 0x4
+        cur->x += (cur->moving.rl ? +2 : -2);
+        if(cur->moving.ud) {
+            cur->y += 2;
+        } else {
+            cur->y -= 2;
+            if(cur->y < 0x24) {
+                cur->moving.ud = 1;
+            }
+        }
+        ++alienNewDirFlag;
+    }
+    drawAlien(cur);
+
+}
 
 byte itemCalcDropColumn(void) {
     return itemDropPositionTable[rand() & 0xf];    

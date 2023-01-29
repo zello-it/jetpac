@@ -70,7 +70,7 @@ typedef struct{
 
 typedef struct{
     byte hv:1; // 1 is vertical
-    byte unk:1;
+    byte jet_moving:1;
     byte unused:4;
     byte rl:1; // 1 is left
     byte ud:1;  // 1 is down
@@ -269,6 +269,8 @@ extern Sprite* collectibleSpriteTable[];
 extern Sprite* spriteTable[];
 extern AlienSprite* alienSpriteTable[];
 extern Sprite* explosionSpriteTable[];
+extern Sprite rocket_flames1;
+extern Sprite rocket_flames2;
 extern byte itemLevelObjectTypes[8];
 extern byte itemDropPositionTable[];
 extern byte laserBeamColors[];

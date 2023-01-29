@@ -227,4 +227,36 @@ void redrawSprite(State* cur) {
     colorizeSprite(cur);
 }
 
+void itemDrawSprite(State* cur) {
+    Sprite* sprite = itemGetSpriteAddress(cur->jumpTableOffset);
+    actorUpdatePosition(cur, sprite);
+    colorizeSprite(cur);
+}
 
+Sprite* itemGetSpriteAddress(byte offset) {
+    return(collectibleSpriteTable[offset / 2]);
+}
+
+void actorDestroy(State* cur, Sprite* sprite) {
+    Coords c = getSpritePosition(sprite, actor.coords);
+    actorEraseDestroyed(cur, sprite, c);
+}
+
+void drawAnimSprite(State* cur, Sprite* sprite) {
+    Coords c = actorUpdate(cur, sprite);
+    SpriteData sd = {
+        .coords = c,
+        .height = sprite->height,
+        .width = sprite->width,
+        .spritedata = sprite->data
+    };
+    maskSprite(NULL, &sd);
+}
+
+void drawAlien(State* cur){
+    byte spriteidx = cur->spriteIndex;
+    cur->spriteIndex = (cur->spriteIndex & 0xc0) | 0x3;
+    updateAndEraseActor(cur);
+    colorizeSprite(cur);
+    cur->spriteIndex = spriteidx;
+}
