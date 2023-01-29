@@ -212,7 +212,7 @@ void copyBuffer() {
 
 void initScreen(void) {
 	atomic_store(&interruptsEnabled, true);
-    InitWindow(800, 600, "jetpac");
+    InitWindow(1024, 768, "jetpac");
     bufferImage = GenImageColor(256, 192, BLACK);
 }
 void renderLoop(void){

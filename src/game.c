@@ -282,6 +282,7 @@ void mainLoop(void) {
             mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
             ei();
         }
+        gameSleep(3500);
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
@@ -365,7 +366,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
-    gameSleep(5000);
+    gameSleep(300);
     // do nothing
 }
 
