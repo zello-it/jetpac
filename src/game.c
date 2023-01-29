@@ -1326,15 +1326,17 @@ void squidgyAlienUpdate(State* cur){
         if(e) {
             printf("e is %x\n", e);
         }
-        if(e & 0x84) {
-            cur->moving.ud = 0;
-        }
-        else if(e & 0x14) {
-            cur->moving.ud = 1;
-        }
-        else if(e & 0x4) {
-            cur->umoving = (cur->umoving & 0xbf) | (e & 0x40);
-            // fallthrough
+        if(e & 0x4) {
+            if(e & 0x80) {
+                cur->moving.ud = 0;
+            }
+            else if(e & 0x10) {
+                cur->moving.ud = 1;
+            }
+            else {
+                cur->umoving = (cur->umoving & 0xbf) | (e & 0x40);
+                // fallthrough
+            }
         }
         // sau1 => ! e & 0x4
         cur->x += (cur->moving.rl ? +2 : -2);
