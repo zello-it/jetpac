@@ -1017,7 +1017,7 @@ void sfxPickupFuel() {
 }
 
 void collectRocketItem(State* cur) {
-    cur->state = Carrying;
+    cur->state |= Carrying;
     actorFindDestroy(cur);
     addPointsToScore(100);
     sfxPickupFuel();
