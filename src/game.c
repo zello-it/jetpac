@@ -794,21 +794,22 @@ void laserBeamDraw(LaserBeam* laser, byte x) {
     sfxLaserFire();
 }
 
-void laserBeamShootRight(LaserBeam* laserBeam) {
+byte laserBeamShootRight(LaserBeam* laserBeam, byte arg) {
     byte x = jetmanState.x & 0x7;
     if(x) {
-        x += 8;
+        arg += 8;
     }
-    x += 0x10;
-    x &= 0xfe;
+    arg += 0x10;
+    arg &= 0xfe;
+    return arg;
 }
 
 void laserBeamInit(LaserBeam* laserBeam) {
     laserBeam->used = LBUsed;
     byte dir = jetmanState.spriteIndex;
     byte x = (jetmanState.x & 0xf8) | 0x5;
-    if(dir & 0x40) {
-        laserBeamShootRight(laserBeam);
+    if((dir & 0x40) == 0) {
+        x = laserBeamShootRight(laserBeam, x);
     } else {
         x -= 8;
     }
@@ -1056,7 +1057,7 @@ void sfxEnemyDeath(State* cur){}
 void sfxJetmanDeath(State* cur){}
 void itemCheckCollect(State* cur){}
 void ufoUpdate(State* cur){}
-void laserBeamAnimate(State* cur){
+void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
     LaserBeam* laser = (LaserBeam*) cur;
     if(laser->x[0] & 0x4) {
         sbyte a = ((laser->x[0] & 0x1) ? -8 : 8) + laser->x[0];
@@ -1081,12 +1082,12 @@ void laserBeamAnimate(State* cur){
         byte* pulse = &laser->x[p + 1];
         // LaserBeamAnimate_4
         byte a = ((*pulse) ^ (laser->x[0])) & 0xf8;
-        if(!a) {
+        if(a) {
             //LaserBeamAnimate_6
             a = *pulse;
             if(a & 4) {
                 // LaserBeamAnimate_7
-                byte offs = (a & 1 ? 8 : -8);
+                sbyte offs = (a & 1 ? -8 : 8);
                 *pulse += offs;
                 Coords old = {.x = a, .y = laser->y};
                 a = b_1;
