@@ -1049,8 +1049,122 @@ void collisionDetection(State* cur){
         redrawSprite(cur);
     }
 }
-void crossedShipUpdate(State* cur){}
-void sphereAlienUpdate(State* cur){}
+
+void alienKillAnimSfx2(State* state, byte points) {
+    addPointsToScore(points);
+    animationStateReset(state);
+    sfxSetExplodeParam(state, 1);
+}
+
+void crossedShipUpdate(State* cur){
+    actorSaveSpritePos(cur);
+    actor.spriteIndex = (cur->spriteIndex & 0x3c) | 0x03;
+    ++currentAlienNumber;
+    if(laserBeamFire(cur) == 1) {
+        return alienKillAnimSfx2(cur, 60);
+    }
+    if(collisionWithJetman(cur) == 1) {
+        return alienCollisionAnimSfx(cur);
+    }
+    alienNewDirFlag = 0;
+    while(true) {
+        byte ret = checkPlatformCollision(cur);
+        if(ret & 0x4) {
+            if(ret & 0x80) {
+                cur->moving.ud = 0;
+                cur->yspeed = byteRand() + 0x08;
+            } else if(ret & 0x10) {
+                cur->moving.ud = 1;
+            } else {
+                cur->umoving = (cur->umoving & 0xbf) | ((ret & 0x40) ^ 0x40);
+            }
+        }
+        cur->x += (cur->moving.rl ? -2 : +2);
+        word speed = (cur->x << 8) | cur->xspeed;
+        word offs = (word)(cur->yspeed) * 2;
+        if(cur->moving.ud) {
+            speed -= offs;
+        } else {
+            speed += offs;
+        }
+        cur->xspeed = speed & 0xff;
+        cur->y = (speed & 0xff00) >> 8;
+        if(cur->y > 0x28) {
+            cur->moving.ud = 1;
+        }
+        if(cur->moving.ud) {
+            if(++cur->yspeed == 0)
+                cur->yspeed = 0xff;
+        } else {
+            if(--cur->yspeed == 0) {
+                cur->moving.ud = 1;
+            }
+        }
+        if(alienNewDirFlag)
+            return drawAlien(cur);
+        ++alienNewDirFlag;
+    }
+}
+
+
+void sphereAlienUpdate(State* cur){
+    ++currentAlienNumber;
+    actorSaveSpritePos(cur);
+    actor.spriteIndex = (cur->spriteIndex & 0xc0) | 0x03;
+    alienNewDirFlag = 0;
+    if(laserBeamFire(cur) == 1) {
+        return alienKillAnimSfx2(cur, 40);
+    }
+    while(alienNewDirFlag < 2) {
+        if(collisionWithJetman(cur) == 1) {
+            return alienCollisionAnimSfx(cur);
+        }
+        // sau 0
+        byte ret = checkPlatformCollision(cur);
+        if(ret & 0x4) {  // bit 2 on
+            if(ret & 0x80) { // bit 7 on
+                //sau_6
+                cur->moving.ud = 0;
+            }
+            else if(ret & 0x10) { // bit 4 on 
+                //sau_7
+                cur->moving.ud = 1;
+            }
+            else {
+                cur->umoving = (ret & 0x40) | (cur->umoving & 0xbf);
+            }
+        }
+        if(cur->moving.hv == 0) {
+            byte r = byteRand();
+            if(!(r & 0x0f)) {
+                cur->moving.hv = 1;
+                byte a = (getGameTime() & 0x1f) + 0x10;
+                cur->yspeed = a;
+                cur->umoving = (cur->umoving & 0x7f) | (r & 0x80);
+                // back to sau_0
+            } else {
+                // sau_2
+                if(cur->moving.hv == 1) {
+                    byte offset = 2;
+                    if(cur->moving.ud == 0) {
+                        offset = -2;
+                        if(cur->y + offset < 0x28){
+                            cur->moving.ud = 1;
+                        }
+                    }
+                    cur->y += offset;
+                    if((--cur->yspeed))
+                        cur->moving.hv = 0;
+                }
+                // sau_4
+                cur->x += (cur->moving.rl ? +2 : -2);
+                if(alienNewDirFlag)
+                    return drawAlien(cur);
+                ++alienNewDirFlag;
+            }
+        }
+    }
+}
 
 void jetFighterUpdateX(State* cur, byte data) {
     // aka jfu3
@@ -1252,6 +1366,7 @@ void itemCheckCollect(State* cur){
         sfxPickupItem();
     }
 }
+// last missing update function...
 void ufoUpdate(State* cur){}
 void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
     LaserBeam* laser = (LaserBeam*) cur;
