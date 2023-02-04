@@ -31,7 +31,7 @@ static inline char* numToChar(int num) {
     char* ret = NULL;
     size_t sz = 0;
     sz = snprintf(ret, sz, "%d", num) + 1;
-    ret = malloc(sz);playersSwaprocket_state:
+    ret = malloc(sz);
     snprintf(ret, sz, "%d", num);
     return ret;
 }

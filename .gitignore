@@ -1,2 +1,5 @@
 build/**
 jetpac/external/jetpac-disassembly/jetpac/**
+/.vs
+/out/build
+/CMakeSettings.json

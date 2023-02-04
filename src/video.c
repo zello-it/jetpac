@@ -1,14 +1,19 @@
 #include "video.h"
 #include "data.h" // for swap
 #include <raylib.h>
+#ifdef WIN32
+#include "wingotcha.h"
+#else
 #include <pthread.h>
+#include <unistd.h>
+#include <stdatomic.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <unistd.h> //not portable
-#include <stdatomic.h>
+
 #include <assert.h>
 
 Image bufferImage;
@@ -126,7 +131,7 @@ byte video[192][32];
 Attrib attribs[24][32];
 Color zxcolors[2][8] = {
     {
-        BLACK,
+		{0, 0, 0, 255},
         {0, 0, 216, 255},
         {216, 0, 0, 255},
         {216, 0, 216, 255},
@@ -136,14 +141,14 @@ Color zxcolors[2][8] = {
         {216, 216, 216, 255}
     },
     {
-        BLACK,
+		{0, 0, 0, 255},
         {0, 0, 255, 255},
         {255, 0, 0, 255},
         {255, 0, 255, 255},
         {0, 255, 0, 255},
         {0, 255, 255, 255},
         {255, 255, 0, 255},
-        WHITE
+		{255, 255, 255, 255}
     }
 };
 
@@ -214,6 +219,9 @@ void initScreen(void) {
 	atomic_store(&interruptsEnabled, true);
     InitWindow(1024, 768, "jetpac");
     bufferImage = GenImageColor(256, 192, BLACK);
+#ifdef WIN32
+	pthread_mutex_init(&video_mutex);
+#endif
 }
 void renderLoop(void){
 	Texture2D tex = LoadTextureFromImage(bufferImage);

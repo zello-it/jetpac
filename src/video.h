@@ -1,7 +1,11 @@
 #pragma once
 #include "data.h"
+#ifndef WIN32
 #include <pthread.h>
 #include <stdatomic.h>
+#else
+#include "wingotcha.h"
+#endif
 
 extern pthread_t thread;
 extern atomic_bool terminate;
