@@ -6,13 +6,12 @@
 #define NOUSER            // All USER defines and routines
 #endif
 
-#include <Windows.h> // or any library that uses Windows.h
+#include <Windows.h> 
 
 #if defined(_WIN32)           // raylib uses these names as function parameters
 #undef near
 #undef far
 #endif
-
 
 typedef HANDLE pthread_t;
 typedef int pthread_attr_t;
@@ -40,4 +39,4 @@ LONG atomic_store(LONG* atomic, LONG value);
 LONG atomic_load(LONG* atomic);
 LONG atomic_fetch_add(LONG* atomic, LONG value);
 void bzero(void* mem, size_t sz);
-void usleep(int millis);
+void usleep(int micros);

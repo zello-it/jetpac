@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef void* (*pthread_fun)(void*);
 
@@ -68,14 +69,15 @@ LONG atomic_fetch_add(LONG* atomic, LONG value) {
     return InterlockedAdd(atomic, value);
 }
 
-void usleep(DWORD waitTime) {
-    LARGE_INTEGER perfCnt, start, now;
 
-    QueryPerformanceFrequency(&perfCnt);
-    QueryPerformanceCounter(&start);
+void usleep(int waitTime) {
+    __int64 time1 = 0, time2 = 0, freq = 0;
+
+    QueryPerformanceCounter((LARGE_INTEGER *) &time1);
+    QueryPerformanceFrequency((LARGE_INTEGER *)&freq);
 
     do {
-        QueryPerformanceCounter((LARGE_INTEGER*)&now);
-    } while ((now.QuadPart - start.QuadPart) / (float)(perfCnt.QuadPart) * 1000 * 1000 < waitTime);
+        QueryPerformanceCounter((LARGE_INTEGER *) &time2);
+    } while((time2-time1) < waitTime * freq /1e6);
 }
 #endif
