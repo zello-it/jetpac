@@ -576,7 +576,7 @@ byte frog_alien_data[] = {
 #define ALIENSPRITE(n, a) AlienSprite n = {.height = a, .data = n##_data}
 
 ALIENSPRITE(meteor1, 0x0b);
-ALIENSPRITE(meteor2, 0x0e);
+ALIENSPRITE(meteor2, 0x0b);
 ALIENSPRITE(squidgy_alien1, 0x0e);
 ALIENSPRITE(squidgy_alien2, 0x0e);
 ALIENSPRITE(jet_fighter, 0x7);
