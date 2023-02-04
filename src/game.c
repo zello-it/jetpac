@@ -221,7 +221,6 @@ void alienBufferInit() {
     rocketModAttached = 4;
 //    jetmanRocketModConnected = 0;
     byte index = ((playerLevel * 4) & 0x1c) >> 1;
-    printf("Idx buffer is %d\n", index);
     for(byte b = 0; b < 2; ++b) {
         AlienSprite* sprite = alienSpriteTable[index+b];
         Sprite* buf = &bufferAliensRight[b];
@@ -712,7 +711,6 @@ void playerTurnEnds(State* state) {
     }
     rocketModuleState.state &= ~2;
     itemState.state &= ~2;
-    printf("rocketmodstate %x, itemstate %x\n", rocketModuleState.state, itemState.state);
     if(gameOptions.players) {
         if(inactivePlayerLives) {
             if(!playerLives) {
@@ -1561,9 +1559,6 @@ void squidgyAlienUpdate(State* cur){
     alienNewDirFlag = 0;
     while(alienNewDirFlag < 2) {
         byte e = checkPlatformCollision(cur);
-        if(e) {
-            printf("e is %x\n", e);
-        }
         if(e & 0x4) {
             if(e & 0x80) {
                 cur->moving.ud = 0;

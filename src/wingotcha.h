@@ -1,11 +1,10 @@
 #pragma once
 
+#ifndef WIN32IMPL
 #define WIN32_LEAN_AND_MEAN
-#if defined(_WIN32)           
 #define NOGDI             // All GDI defines and routines
 #define NOUSER            // All USER defines and routines
 #endif
-
 #include <Windows.h> 
 
 #if defined(_WIN32)           // raylib uses these names as function parameters

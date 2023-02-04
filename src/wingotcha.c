@@ -1,4 +1,6 @@
 #ifdef WIN32
+
+#define WIN32IMPL
 #include "wingotcha.h"
 #include <assert.h>
 #include <string.h>
@@ -80,4 +82,6 @@ void usleep(int waitTime) {
         QueryPerformanceCounter((LARGE_INTEGER *) &time2);
     } while((time2-time1) < waitTime * freq /1e6);
 }
+
+
 #endif

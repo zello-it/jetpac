@@ -223,9 +223,36 @@ void initScreen(void) {
 	pthread_mutex_init(&video_mutex);
 #endif
 }
+
+typedef struct {
+	int x;
+	int y;
+	int w;
+	int h;
+} WinSize;
+
+WinSize getWinSize() {
+	if (!IsWindowFullscreen()) {
+		return (WinSize) { .x = 0, .y = 0, .w = GetRenderWidth(), .h = GetRenderHeight() };
+	}
+	else {
+		int h = GetRenderHeight();
+		int w = GetRenderWidth();
+		if (h * 4 / 3 > w) {
+			int offs = w * 3 / 4;
+			return (WinSize) { .x = 0, .y = (h - offs) / 2, .w = w, .h = offs };
+		}
+		else {
+			int offs = h * 4 / 3;
+			return (WinSize) { .x = (w - offs) / 2, .y = 0, .w = offs, .h = h };
+		}
+	}
+}
+
 void renderLoop(void){
 	Texture2D tex = LoadTextureFromImage(bufferImage);
     int millis = 0;
+	WinSize winsize = getWinSize();
 	while(!WindowShouldClose()) {
 		int newmillis = getMillis();
 		if(atomic_load(&interruptsEnabled)) {
@@ -240,18 +267,16 @@ void renderLoop(void){
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
 		unlockVideo();
-		if(IsKeyPressed(KEY_F1))
+		if (IsKeyPressed(KEY_F1)) {
 			ToggleFullscreen();
-		int width = GetRenderWidth();
-		int height = GetRenderHeight();
-		int propwidth = height * tex.width / tex.height;
-		int xoffs = (width - propwidth) / 2;
+			winsize = getWinSize();
+		}
         BeginDrawing();
 			ClearBackground(BLACK);
             DrawTexturePro(
                 tex,
                 (Rectangle){.x = 0, .y = 0, .width = tex.width, .height = tex.height},
-                (Rectangle){.x = xoffs, .y = 0, .width = propwidth, .height = height},
+                (Rectangle){.x = winsize.x, .y = winsize.y, .width = winsize.w, .height = winsize.h},
                 (Vector2){0, 0},
                 0,
                 WHITE
