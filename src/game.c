@@ -251,7 +251,7 @@ void rocketReset() {
 }
 
 void levelNew(void) {
-    if(!playerLevel % 4) {
+    if(!(playerLevel & 3)) {
         rocketReset();
         ++playerLives;
         playerInit();
@@ -1145,7 +1145,7 @@ void sphereAlienUpdate(State* cur){
         }
         // sau_2
         if(cur->moving.hv == 1) {
-            byte offset = 2;
+            sbyte offset = 2;
             if(cur->moving.ud == 0) {
                 offset = -2;
                 if(cur->y + offset < 0x28){

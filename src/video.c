@@ -233,11 +233,12 @@ typedef struct {
 
 WinSize getWinSize() {
 	if (!IsWindowFullscreen()) {
-		return (WinSize) { .x = 0, .y = 0, .w = GetRenderWidth(), .h = GetRenderHeight() };
+		return (WinSize) { .x = 0, .y = 0, .w = GetScreenWidth(), .h = GetScreenHeight() };
 	}
 	else {
-		int h = GetRenderHeight();
-		int w = GetRenderWidth();
+		int mon = GetCurrentMonitor();
+		int h = GetMonitorHeight(mon);
+		int w = GetMonitorWidth(mon);
 		if (h * 4 / 3 > w) {
 			int offs = w * 3 / 4;
 			return (WinSize) { .x = 0, .y = (h - offs) / 2, .w = w, .h = offs };
@@ -267,11 +268,12 @@ void renderLoop(void){
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
 		unlockVideo();
-		if (IsKeyPressed(KEY_F1)) {
-			ToggleFullscreen();
-			winsize = getWinSize();
-		}
+
         BeginDrawing();
+		    if (IsKeyPressed(KEY_F1)) {
+				ToggleFullscreen();
+				winsize = getWinSize();
+			}
 			ClearBackground(BLACK);
             DrawTexturePro(
                 tex,
