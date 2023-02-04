@@ -146,13 +146,13 @@ byte* writeThreeBytes(byte* what, byte* to, byte shift, byte flip) {
 void bufferCopy(byte* what, Sprite* where, byte height, byte shift, byte flipped) {
     where->xoffset = 0;
     where->width = 3;
-    height = (height > 0x11 ? height : 0x10);
+    height = (height < 0x11 ? height : 0x10);
     where->height = height;
     byte* ptrto = where->data;
     while(height--) {
         ptrto = writeThreeBytes(what, ptrto, shift, flipped);
         what += 2;
-    }
+    }\
 }
 
 void bufferCopyRocket(byte arg) {
