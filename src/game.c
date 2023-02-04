@@ -308,7 +308,7 @@ void newGame(void) {
     srand(time(NULL));
     maxState = 0x0f;
     playerLevel = 0;
-    playerLives = 4;
+    playerLives = 9;
     rocketReset();
     inactivePlayerLevel = 0;
     if(gameOptions.players) {
@@ -1115,10 +1115,10 @@ void sphereAlienUpdate(State* cur){
     if(laserBeamFire(cur) == 1) {
         return alienKillAnimSfx2(cur, 40);
     }
-    while(alienNewDirFlag < 2) {
-        if(collisionWithJetman(cur) == 1) {
-            return alienCollisionAnimSfx(cur);
-        }
+    if(collisionWithJetman(cur) == 1) {
+        return alienCollisionAnimSfx(cur);
+    }
+    while(true){
         // sau 0
         byte ret = checkPlatformCollision(cur);
         if(ret & 0x4) {  // bit 2 on
@@ -1134,6 +1134,7 @@ void sphereAlienUpdate(State* cur){
                 cur->umoving = (ret & 0x40) | (cur->umoving & 0xbf);
             }
         }
+        // sau_1
         if(cur->moving.hv == 0) {
             byte r = byteRand();
             if(!(r & 0x0f)) {
@@ -1141,28 +1142,27 @@ void sphereAlienUpdate(State* cur){
                 byte a = (getGameTime() & 0x1f) + 0x10;
                 cur->yspeed = a;
                 cur->umoving = (cur->umoving & 0x7f) | (r & 0x80);
-                // back to sau_0
-            } else {
-                // sau_2
-                if(cur->moving.hv == 1) {
-                    byte offset = 2;
-                    if(cur->moving.ud == 0) {
-                        offset = -2;
-                        if(cur->y + offset < 0x28){
-                            cur->moving.ud = 1;
-                        }
-                    }
-                    cur->y += offset;
-                    if((--cur->yspeed))
-                        cur->moving.hv = 0;
-                }
-                // sau_4
-                cur->x += (cur->moving.rl ? +2 : -2);
-                if(alienNewDirFlag)
-                    return drawAlien(cur);
-                ++alienNewDirFlag;
-            }
+                continue;
+            } 
         }
+        // sau_2
+        if(cur->moving.hv == 1) {
+            byte offset = 2;
+            if(cur->moving.ud == 0) {
+                offset = -2;
+                if(cur->y + offset < 0x28){
+                    cur->moving.ud = 1;
+                }
+            }
+            cur->y += offset;
+            if((--cur->yspeed) == 0)
+                cur->moving.hv = 0;
+        } 
+        // sau_4
+        cur->x += (cur->moving.rl ? +2 : -2);
+        if(alienNewDirFlag)
+            return drawAlien(cur);
+        ++alienNewDirFlag;
     }
 }
 
@@ -1307,9 +1307,9 @@ void rocketAnimateFlames(State* cur) {
 void rocketModuleReset() {
     // zero from rocketModuleState to inactiveJetmanState
     #define FRM 5
-    #define FTO 0xf
-    for(int i = FRM; i <= FTO; ++i) {
-        states[i]->spriteIndex = 0;
+    #define HOWMANY 0xc
+    for(int i = 0; i <= HOWMANY; ++i) {
+        states[FRM + i]->spriteIndex = 0;
     }
 }
 
@@ -1648,7 +1648,7 @@ void newActor(void){
                 (!(r & 0x1f) && currentAlienNumber < 6)
              ) &&
             playerDelayCounter == 0 &&
-            jetmanState.direction.fly == 0
+            (jetmanState.direction.fly || jetmanState.direction.walk)
         )
         {
             for(byte b = 0; b < array_sizeof(alienState); ++b) {
