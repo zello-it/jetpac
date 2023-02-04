@@ -1366,8 +1366,130 @@ void itemCheckCollect(State* cur){
         sfxPickupItem();
     }
 }
+
+word ufoAdjust(byte low) {
+    word ret;
+    low <<= 4;
+    low &= 0xf0; // useless?
+    ret = low;
+    if(low & 0x80)
+        ret |= 0x100;
+    return ret;
+}
+
+word ufoAdd(byte coord, byte hi, byte low){ // uu2
+    word w = ufoAdjust(low);
+    w += ((coord << 8) + hi);
+    return w; 
+}
+word ufoSub(byte coord, byte hi, byte low) { //uu8
+    word w = ufoAdjust(low);
+    w -= ((coord << 8) + hi);
+    return w;
+}
+
 // last missing update function...
-void ufoUpdate(State* cur){}
+void ufoUpdate(State* cur){
+    ++currentAlienNumber;
+    actorSaveSpritePos(cur);
+    actor.spriteIndex = cur->spriteIndex & 0xc0 | 0x03;
+    if(laserBeamFire(cur) == 1) {
+        return addPointsToScore(50);
+    }
+    if(collisionWithJetman(cur) == 1) {
+        return alienCollisionAnimSfx(cur);
+    }
+    alienNewDirFlag = 0;
+    while(true) {
+        byte res = checkPlatformCollision(cur);
+        if(res & 0x04) {
+            if(res & 0x80) {
+                cur->moving.ud = 0;
+            } else if(res & 0x10) {
+                cur->moving.ud = 1;
+            }
+        } else {
+            cur->umoving = (cur->umoving & 0xbf) | ((res & 0x40) ^0x40);
+        }
+        byte hinibble = cur->xspeed & 0xf0; // b
+        byte lownibble = cur->xspeed & 0x0f;   // c
+        sbyte diff = jetmanState.x - cur->x;
+        word offs = 0;
+        if(diff > 0) {
+            if(cur->moving.rl) {
+                if(--lownibble == 0) {
+                    cur->moving.rl = 0;
+                    offs = ufoAdd(cur->x, hinibble, lownibble);
+                } else {
+                    offs = ufoSub(cur->x, hinibble, lownibble);
+                }
+            } else {
+                //uu9
+                if(lownibble < 0xf){
+                    ++lownibble;
+                }
+                offs = ufoAdd(cur->x, hinibble, lownibble);
+            }
+        } else {
+            if(cur->moving.rl) {
+                if(lownibble != 0xf)
+                    ++lownibble;
+                offs = ufoSub(cur->x, hinibble, lownibble);
+            } else {
+                //uu10
+                if(--lownibble ==0){
+                    cur->moving.rl = 1;
+                    offs = ufoSub(cur->x, hinibble, lownibble);
+                } else {
+                    offs = ufoAdd(cur->x, hinibble, lownibble);
+                }
+            }
+        }
+        //uu_3
+        cur->x = (offs >> 8);
+        cur->xspeed = offs & 0xf0 | lownibble;
+
+        lownibble = cur->yspeed & 0xf;
+        hinibble = cur->yspeed & 0xf0;
+        diff = jetmanState.y - cur->y;
+        if(diff >= 0) {
+            if(cur->moving.ud) {
+                if(lownibble < 0xf)
+                    ++lownibble;
+                offs = ufoAdd(cur->y, hinibble, lownibble);
+            } else {
+                if(--lownibble) {
+                    offs = ufoSub(cur->y, hinibble, lownibble);
+                } else {
+                    cur->moving.ud = 1;
+                    offs = ufoAdd(cur->y, hinibble, lownibble);
+                }
+            }
+        } else {
+            if(cur->moving.ud){
+                if(--lownibble) {
+                    offs = ufoAdd(cur->y, hinibble, lownibble);
+                } else {
+                    cur->moving.ud = 0;
+                    offs = ufoSub(cur->y, hinibble, lownibble);
+                }
+            } else {
+                if(lownibble < 0xf)
+                    ++lownibble;
+                offs = ufoSub(cur->y, hinibble, lownibble);
+            }
+        }
+        // uu5
+        byte hiw = (offs >> 8);
+        if(hiw < 0x28)
+            cur->moving.ud = 1;
+        cur->y = hiw;
+        cur->yspeed = (offs & 0xf0) | lownibble;
+        if(alienNewDirFlag)
+            return drawAlien(cur);
+        ++alienNewDirFlag;
+    }
+}
 void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
     LaserBeam* laser = (LaserBeam*) cur;
     if(laser->x[0] & 0x4) {

@@ -232,11 +232,18 @@ void renderLoop(void){
 			copyBuffer();
 			UpdateTexture(tex, bufferImage.data);
 		unlockVideo();
+		if(IsKeyPressed(KEY_F1))
+			ToggleFullscreen();
+		int width = GetRenderWidth();
+		int height = GetRenderHeight();
+		int propwidth = height * tex.width / tex.height;
+		int xoffs = (width - propwidth) / 2;
         BeginDrawing();
+			ClearBackground(BLACK);
             DrawTexturePro(
                 tex,
                 (Rectangle){.x = 0, .y = 0, .width = tex.width, .height = tex.height},
-                (Rectangle){.x = 0, .y = 0, .width = GetScreenWidth(), .height = GetScreenHeight()},
+                (Rectangle){.x = xoffs, .y = 0, .width = propwidth, .height = height},
                 (Vector2){0, 0},
                 0,
                 WHITE
