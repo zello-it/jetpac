@@ -277,8 +277,8 @@ void renderLoop(void){
 			ClearBackground(BLACK);
             DrawTexturePro(
                 tex,
-                (Rectangle){.x = 0, .y = 0, .width = tex.width, .height = tex.height},
-                (Rectangle){.x = winsize.x, .y = winsize.y, .width = winsize.w, .height = winsize.h},
+                (Rectangle){.x = 0, .y = 0, .width = (float) tex.width, .height = (float) tex.height},
+                (Rectangle){.x = (float) winsize.x, .y = (float) winsize.y, .width = (float) winsize.w, .height = (float) winsize.h},
                 (Vector2){0, 0},
                 0,
                 WHITE
@@ -402,7 +402,7 @@ byte getVideoByte(Coords coords) {
 
 
 word getGameTime(){
-	word ret = atomic_load(&gameTime);
+	word ret = (word) atomic_load(&gameTime);
 	return ret;
 }
 void resetGameTime() {
