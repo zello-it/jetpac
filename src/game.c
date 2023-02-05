@@ -152,7 +152,7 @@ void bufferCopy(byte* what, Sprite* where, byte height, byte shift, byte flipped
     while(height--) {
         ptrto = writeThreeBytes(what, ptrto, shift, flipped);
         what += 2;
-    }\
+    }
 }
 
 void bufferCopyRocket(byte arg) {
@@ -281,7 +281,7 @@ void mainLoop(void) {
             mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
             ei();
         }
-        gameSleep(3500);
+        gameSleep(3000);
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
@@ -365,7 +365,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
-    gameSleep(300);
+    gameSleep(100);
     // do nothing
 }
 
@@ -1366,23 +1366,17 @@ void itemCheckCollect(State* cur){
 }
 
 word ufoAdjust(byte low) {
-    word ret;
-    low <<= 4;
-    low &= 0xf0; // useless?
-    ret = low;
-    if(low & 0x80)
-        ret |= 0x100;
-    return ret;
+    return ((word)low)<<5;
 }
 
-word ufoAdd(byte coord, byte hi, byte low){ // uu2
+word ufoAdd(byte coord, byte hi, byte low){ // uu8
     word w = ufoAdjust(low);
-    w += ((coord << 8) + hi);
+    w += (((word)coord) << 8) | hi;
     return w; 
 }
-word ufoSub(byte coord, byte hi, byte low) { //uu8
-    word w = ufoAdjust(low);
-    w -= ((coord << 8) + hi);
+word ufoSub(byte coord, byte hi, byte low) { //uu2
+    word w = (((word)coord)<< 8) | hi;
+    w -= ufoAdjust(low);
     return w;
 }
 
@@ -1392,12 +1386,15 @@ void ufoUpdate(State* cur){
     actorSaveSpritePos(cur);
     actor.spriteIndex = cur->spriteIndex & 0xc0 | 0x03;
     if(laserBeamFire(cur) == 1) {
-        return addPointsToScore(50);
+        addPointsToScore(50);
+        animationStateReset(cur);
+        return sfxSetExplodeParam(cur, 0);
     }
     if(collisionWithJetman(cur) == 1) {
         return alienCollisionAnimSfx(cur);
     }
     alienNewDirFlag = 0;
+    // uu_0
     while(true) {
         byte res = checkPlatformCollision(cur);
         if(res & 0x04) {
@@ -1405,15 +1402,17 @@ void ufoUpdate(State* cur){
                 cur->moving.ud = 0;
             } else if(res & 0x10) {
                 cur->moving.ud = 1;
+            }  else {
+            cur->umoving = (cur->umoving & 0xbf) | (~res & 0x40);
             }
-        } else {
-            cur->umoving = (cur->umoving & 0xbf) | ((res & 0x40) ^0x40);
         }
+        // uu_1
         byte hinibble = cur->xspeed & 0xf0; // b
         byte lownibble = cur->xspeed & 0x0f;   // c
-        sbyte diff = jetmanState.x - cur->x;
+        // sbyte diff = jetmanState.x - cur->x;
         word offs = 0;
-        if(diff > 0) {
+        if(jetmanState.x >= cur->x) {
+            //uu7
             if(cur->moving.rl) {
                 if(--lownibble == 0) {
                     cur->moving.rl = 0;
@@ -1428,9 +1427,9 @@ void ufoUpdate(State* cur){
                 }
                 offs = ufoAdd(cur->x, hinibble, lownibble);
             }
-        } else {
+        } else {  // jetmanState.x < cur->x
             if(cur->moving.rl) {
-                if(lownibble != 0xf)
+                if(lownibble < 0xf)
                     ++lownibble;
                 offs = ufoSub(cur->x, hinibble, lownibble);
             } else {
@@ -1438,19 +1437,17 @@ void ufoUpdate(State* cur){
                 if(--lownibble ==0){
                     cur->moving.rl = 1;
                     offs = ufoSub(cur->x, hinibble, lownibble);
-                } else {
+                } else { //uu8
                     offs = ufoAdd(cur->x, hinibble, lownibble);
                 }
             }
         }
         //uu_3
         cur->x = (offs >> 8);
-        cur->xspeed = offs & 0xf0 | lownibble;
-
+        cur->xspeed = (offs & 0xf0) | lownibble;
         lownibble = cur->yspeed & 0xf;
         hinibble = cur->yspeed & 0xf0;
-        diff = jetmanState.y - cur->y;
-        if(diff >= 0) {
+        if(jetmanState.y >= cur->y) {
             if(cur->moving.ud) {
                 if(lownibble < 0xf)
                     ++lownibble;
