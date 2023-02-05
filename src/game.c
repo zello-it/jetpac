@@ -8,6 +8,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+#define DELAY_FRAMERATELIMITER 1500
+#define DELAY_MAIN             2200
 
 #define ZEROSTRUCT(name, type) (name = (const type){0})
 #define ZEROARRAY(name, type) {for(int n=0; n < array_sizeof(name); ++n){ZEROSTRUCT(name[n], type);}}
@@ -281,7 +285,7 @@ void mainLoop(void) {
             mainJumpTable[jetmanState.spriteIndex & 0x3f](&jetmanState);
             ei();
         }
-        gameSleep(1500);
+        gameSleep(DELAY_MAIN);
         byte funToCall = states[currentState]->spriteIndex & 0x3f;
         // should not be needed, just in case while debugging
 #ifndef NDEBUG
@@ -304,7 +308,7 @@ void initFlipped() {
 }
 
 void newGame(void) {
-    srand(time(NULL));
+    srand((unsigned int) time(NULL));
     maxState = 0x0f;
     playerLevel = 0;
     playerLives = 9;
@@ -365,7 +369,7 @@ void startGame(void) {
 
 // update functions
 void frameRateLimiter(State* cur){
-    gameSleep(1500);
+    gameSleep(DELAY_FRAMERATELIMITER);
     // do nothing
 }
 
@@ -699,7 +703,7 @@ void displayGameOver() {
     textOutAttrib(
         coords, gameover,(Attrib){.attrib = 0x47}
     );
-    gameSleep(1.0e6);
+    gameSleep(1000000);
 }
 
 void playerTurnEnds(State* state) {
@@ -795,7 +799,7 @@ void itemDropPlutonium(State* cur){
     itemDrawSprite(cur);
 }
 void itemDropRandomColor(State* cur){
-    byte col = getGameTime();
+    byte col = (byte)getGameTime();
     col >>= 2;
     col &= 7;
     if(!col) 
@@ -1059,10 +1063,12 @@ void crossedShipUpdate(State* cur){
     actor.spriteIndex = (cur->spriteIndex & 0x3c) | 0x03;
     ++currentAlienNumber;
     if(laserBeamFire(cur) == 1) {
-        return alienKillAnimSfx2(cur, 60);
+        alienKillAnimSfx2(cur, 60);
+        return;
     }
     if(collisionWithJetman(cur) == 1) {
-        return alienCollisionAnimSfx(cur);
+        alienCollisionAnimSfx(cur);
+        return;
     }
     alienNewDirFlag = 0;
     while(true) {
@@ -1098,8 +1104,10 @@ void crossedShipUpdate(State* cur){
                 cur->moving.ud = 1;
             }
         }
-        if(alienNewDirFlag)
-            return drawAlien(cur);
+        if(alienNewDirFlag) {
+            drawAlien(cur);
+            return;
+        }
         ++alienNewDirFlag;
     }
 }
@@ -1111,10 +1119,12 @@ void sphereAlienUpdate(State* cur){
     actor.spriteIndex = (cur->spriteIndex & 0xc0) | 0x03;
     alienNewDirFlag = 0;
     if(laserBeamFire(cur) == 1) {
-        return alienKillAnimSfx2(cur, 40);
+        alienKillAnimSfx2(cur, 40);
+        return;
     }
     if(collisionWithJetman(cur) == 1) {
-        return alienCollisionAnimSfx(cur);
+        alienCollisionAnimSfx(cur);
+        return;
     }
     while(true){
         // sau 0
@@ -1158,8 +1168,10 @@ void sphereAlienUpdate(State* cur){
         } 
         // sau_4
         cur->x += (cur->moving.rl ? +2 : -2);
-        if(alienNewDirFlag)
-            return drawAlien(cur);
+        if(alienNewDirFlag) {
+            drawAlien(cur);
+            return;
+        }
         ++alienNewDirFlag;
     }
 }
@@ -1185,7 +1197,8 @@ void jetFighterUpdate(State* cur){
     byte y = 0, x = 0;
     if(cur->moving.jet_moving){
         if(--cur->xspeed == 0) {
-            return destroyFighter(cur);
+            destroyFighter(cur);
+            return;
         }
         x = (cur->spriteIndex & 0x40 ? -4 : 4);
         if(jetmanState.y >= cur->y) 
@@ -1216,7 +1229,8 @@ void jetFighterUpdate(State* cur){
         checkPlatformCollision(cur) & 0x4 ||
         laserBeamFire(cur) == 1
     ) {
-        return destroyFighter(cur);
+        destroyFighter(cur);
+        return;
     }
     if(collisionWithJetman(cur) == true)
     {
@@ -1388,10 +1402,12 @@ void ufoUpdate(State* cur){
     if(laserBeamFire(cur) == 1) {
         addPointsToScore(50);
         animationStateReset(cur);
-        return sfxSetExplodeParam(cur, 0);
+        sfxSetExplodeParam(cur, 0);
+        return;
     }
     if(collisionWithJetman(cur) == 1) {
-        return alienCollisionAnimSfx(cur);
+        alienCollisionAnimSfx(cur);
+        return;
     }
     alienNewDirFlag = 0;
     // uu_0
@@ -1480,8 +1496,10 @@ void ufoUpdate(State* cur){
             cur->moving.ud = 1;
         cur->y = hiw;
         cur->yspeed = (offs & 0xf0) | lownibble;
-        if(alienNewDirFlag)
-            return drawAlien(cur);
+        if(alienNewDirFlag) {
+           drawAlien(cur);
+           return;
+        }
         ++alienNewDirFlag;
     }
 }
@@ -1549,7 +1567,8 @@ void squidgyAlienUpdate(State* cur){
         // kill alien
         addPointsToScore(80);
         animationStateReset(cur);
-        return sfxSetExplodeParam(cur, 0);
+        sfxSetExplodeParam(cur, 0);
+        return;
     }
     if(collisionWithJetman(cur))
         alienCollisionAnimSfx(cur);
