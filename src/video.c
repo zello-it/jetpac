@@ -16,7 +16,16 @@
 
 #include <assert.h>
 
+// if we draw to a RenderTexture, performance go severely down
+// at least on MacOS on M1 (still have to test on other sys)
+//#define RENDERTEXTURE 1
+
+#if !defined(RENDERTEXTURE)
 Image bufferImage;
+#else
+RenderTexture2D renderTexture;
+#endif
+
 pthread_t thread = 0;
 atomic_bool terminate;
 pthread_mutex_t video_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -183,10 +192,17 @@ static inline void writeAttrib(byte xcol, byte yrow, Attrib what) {
 void drawByte(byte col, byte row, Color ink, Color paper) {
     byte line = video[row][col];
 	//printf("print %d - %d\n", row, col);
-    for(byte b = 0; b < 8; ++b) {
+#if !defined(RENDERTEXTURE)
+	for(byte b = 0; b < 8; ++b) {
         ImageDrawPixel(&bufferImage, col * 8 + b, row, (line & 0x80 ? ink : paper) );
         line <<= 1;
     }
+#else
+	for(byte b = 0; b < 8; ++b) {
+		DrawPixel(col * 8 + b, row, (line & 0x80 ? ink : paper));
+		line <<= 1;
+	}
+#endif
 }
 
 typedef struct {
@@ -205,6 +221,9 @@ static Colors internal_getAttrib(byte col, byte row) {
 }
 
 void copyBuffer() {
+#ifdef RENDERTEXTURE
+	BeginTextureMode(renderTexture);
+#endif
     for(byte lines = 0; lines < 24; ++lines) {
         for(byte cols = 0; cols < 32; ++cols) {
             Colors colors = internal_getAttrib(cols, lines);
@@ -213,12 +232,19 @@ void copyBuffer() {
             }
         }
     }
+#ifdef RENDERTEXTURE
+	EndTextureMode();
+#endif
 }
 
 void initScreen(void) {
 	atomic_store(&interruptsEnabled, true);
     InitWindow(1024, 768, "jetpac");
+#if !defined(RENDERTEXTURE)
     bufferImage = GenImageColor(256, 192, BLACK);
+#else
+	renderTexture = LoadRenderTexture(256, 192);
+#endif
 #ifdef WIN32
 	pthread_mutex_init(&video_mutex);
 #endif
@@ -251,7 +277,9 @@ WinSize getWinSize() {
 }
 
 void renderLoop(void){
+#ifndef RENDERTEXTURE
 	Texture2D tex = LoadTextureFromImage(bufferImage);
+#endif
     int millis = 0;
 	WinSize winsize = getWinSize();
 	while(!WindowShouldClose()) {
@@ -266,7 +294,9 @@ void renderLoop(void){
 		}
 		lockVideo();
 			copyBuffer();
+#ifndef RENDERTEXTURE
 			UpdateTexture(tex, bufferImage.data);
+#endif
 		unlockVideo();
 
         BeginDrawing();
@@ -275,6 +305,16 @@ void renderLoop(void){
 				winsize = getWinSize();
 			}
 			ClearBackground(BLACK);
+#ifdef RENDERTEXTURE
+			DrawTexturePro(
+				renderTexture.texture,
+				(Rectangle) {.x = 0, .y = 0, .width = (float) renderTexture.texture.width, .height = -(float)renderTexture.texture.height},
+				(Rectangle) {.x = (float) winsize.x, .y = (float) winsize.y, .width = (float) winsize.w, .height = (float) winsize.h},
+                (Vector2){0, 0},
+                0,
+                WHITE
+            );
+#else
             DrawTexturePro(
                 tex,
                 (Rectangle){.x = 0, .y = 0, .width = (float) tex.width, .height = (float) tex.height},
@@ -283,16 +323,24 @@ void renderLoop(void){
                 0,
                 WHITE
             );
+#endif
+#ifndef NDEBUG
+		DrawFPS(0, 0);
+#endif
         EndDrawing();
     }
+#ifndef RENDERTEXTURE
 	UnloadTexture(tex);
+#endif
 }
 void terminateScreen(void){
 	atomic_store(&terminate, 1);
 	if(thread)
 		pthread_join(thread, NULL);
     pthread_mutex_destroy(&video_mutex);
+#ifndef RENDERTEXTURE
     UnloadImage(bufferImage);
+#endif
 }
 
 void checkTermination(void) {
