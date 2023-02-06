@@ -4,3 +4,4 @@ jetpac/external/jetpac-disassembly/jetpac/**
 /out/build
 /CMakeSettings.json
 src/game.c
+.vscode/settings.json

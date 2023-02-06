@@ -82,7 +82,7 @@ void resetGlobals(void) {
     ZEROSTRUCT(inactiveJetmanState, State);
     ZEROARRAY(inactiveRocketState, State);
     ZEROSTRUCT(actor, ActorTempState);
-    alienNewDirFlag = currentAlienNumber = 0;
+    currentAlienNumber = 0;
     resetGameTime();
     ZEROSTRUCT(actorCoords, Coords);
     currentPlayerNumber = Player1;
@@ -1070,7 +1070,7 @@ void crossedShipUpdate(State* cur){
         alienCollisionAnimSfx(cur);
         return;
     }
-    alienNewDirFlag = 0;
+    bool changeDir = false;
     while(true) {
         byte ret = checkPlatformCollision(cur);
         if(ret & 0x4) {
@@ -1104,11 +1104,11 @@ void crossedShipUpdate(State* cur){
                 cur->moving.ud = 1;
             }
         }
-        if(alienNewDirFlag) {
+        if(changeDir) {
             drawAlien(cur);
             return;
         }
-        ++alienNewDirFlag;
+        changeDir = true;
     }
 }
 
@@ -1117,7 +1117,7 @@ void sphereAlienUpdate(State* cur){
     ++currentAlienNumber;
     actorSaveSpritePos(cur);
     actor.spriteIndex = (cur->spriteIndex & 0xc0) | 0x03;
-    alienNewDirFlag = 0;
+    bool changeDir = false;
     if(laserBeamFire(cur) == 1) {
         alienKillAnimSfx2(cur, 40);
         return;
@@ -1168,11 +1168,11 @@ void sphereAlienUpdate(State* cur){
         } 
         // sau_4
         cur->x += (cur->moving.rl ? +2 : -2);
-        if(alienNewDirFlag) {
+        if(changeDir) {
             drawAlien(cur);
             return;
         }
-        ++alienNewDirFlag;
+        changeDir = true;
     }
 }
 
@@ -1409,7 +1409,7 @@ void ufoUpdate(State* cur){
         alienCollisionAnimSfx(cur);
         return;
     }
-    alienNewDirFlag = 0;
+    bool changeDir = false;
     // uu_0
     while(true) {
         byte res = checkPlatformCollision(cur);
@@ -1496,11 +1496,11 @@ void ufoUpdate(State* cur){
             cur->moving.ud = 1;
         cur->y = hiw;
         cur->yspeed = (offs & 0xf0) | lownibble;
-        if(alienNewDirFlag) {
+        if(changeDir) {
            drawAlien(cur);
            return;
         }
-        ++alienNewDirFlag;
+        changeDir = true;
     }
 }
 void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
@@ -1572,8 +1572,8 @@ void squidgyAlienUpdate(State* cur){
     }
     if(collisionWithJetman(cur))
         alienCollisionAnimSfx(cur);
-    alienNewDirFlag = 0;
-    while(alienNewDirFlag < 2) {
+    bool changeDir = false;
+    while(true) {
         byte e = checkPlatformCollision(cur);
         if(e & 0x4) {
             if(e & 0x80) {
@@ -1597,7 +1597,9 @@ void squidgyAlienUpdate(State* cur){
                 cur->moving.ud = 1;
             }
         }
-        ++alienNewDirFlag;
+        if(changeDir)
+            break;
+        changeDir = true;
     }
     drawAlien(cur);
 

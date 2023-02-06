@@ -188,7 +188,6 @@ typedef struct {
 } ActorTempState;
 
 extern ActorTempState actor;
-extern byte alienNewDirFlag;
 
 extern byte jetmanSpeedModifier;
 extern byte currentAlienNumber;

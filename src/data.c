@@ -17,7 +17,6 @@ State jetmanExplodingAnimState;
 State inactiveJetmanState;
 State inactiveRocketState[3];
 ActorTempState actor;
-byte alienNewDirFlag;
 byte jetmanSpeedModifier;
 byte currentAlienNumber;
 Coords actorCoords;
