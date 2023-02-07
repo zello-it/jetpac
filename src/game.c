@@ -286,16 +286,15 @@ void mainLoop(void) {
             ei();
         }
         gameSleep(DELAY_MAIN);
-        byte funToCall = states[currentState]->spriteIndex & 0x3f;
-        // should not be needed, just in case while debugging
-#ifndef NDEBUG
-//        printf("Calling %d on sprite idx %d\n", funToCall, currentState & 0x3f);
-#endif
+        byte funToCall = states[currentState]->spriteIndex & 0x3f; 
         mainJumpTable[funToCall](states[currentState]);
         newActor();
     }
 }
 
+/*
+    Precalc x-flipped bytes
+*/
 void initFlipped() {
     for(word b = 0; b < 256; ++b) {
         byte res = 0;
@@ -375,7 +374,7 @@ void frameRateLimiter(State* cur){
 
 void jetmanLands(State* cur) {
     cur->moving.ud = 0;
-    cur->spriteIndex = (cur->spriteIndex & 0xc0) | 0x2;
+    cur->spriteIndex = (cur->spriteIndex & 0xc0) | 0x2; // walking
     cur->xspeed = 0;
     cur->yspeed = 0;
     jetmanRedraw(cur);
@@ -433,22 +432,23 @@ void jetmanDirFlipY(State* cur) {
 }
 
 void jetmanFlyHorizontal(State* cur) {
-    word xspeed = (word)(cur->xspeed) * 8;
+    word xspeed = ((word)(cur->xspeed)) << 3;
     word xpos = (cur->x << 8) | actor.xSpeedDecimal;
     if(cur->moving.rl) {
         xpos -= xspeed;
     } else {
         xpos += xspeed;
     }
-    actor.xSpeedDecimal = (byte) (xpos & 0x00ff);
-    cur->x = (byte)((xpos & 0xff00) >> 8);
+    actor.xSpeedDecimal = LOBYTE(xpos);
+    cur->x = HIBYTE(xpos);
     if(readInputHover() == Hover) {
         cur->yspeed = 0;
         jetmanFlyVertical(cur);
+        return;
     }
     if(readInputThrust() != Thrust) {
         //    jetmanSetMoveDown(cur);
-        cur->spriteIndex |= 0x80;
+        cur->spriteIndex |= 0x80; // move down
         if(cur->moving.ud) {
             //jetmanSpeedIncY
             byte speed = cur->yspeed + 8 - jetmanSpeedModifier;
@@ -458,7 +458,7 @@ void jetmanFlyHorizontal(State* cur) {
             jetmanDirFlipY(cur);
         }
     } else {
-        cur->spriteIndex &= ~0x80;
+        cur->spriteIndex &= ~0x80; // fly up
         if(cur->moving.ud) {
             jetmanDirFlipY(cur);
             return;
@@ -476,7 +476,7 @@ void jetmanDirFlipX(State* cur) {
     sbyte xspeed = jetmanSpeedModifier - 0x8 + cur->xspeed;
     if(xspeed < 0) {
         cur->xspeed = 0;
-        cur->moving.rl = ~cur->moving.rl;
+        cur->moving.rl = !cur->moving.rl;
     } else {
         cur->xspeed = xspeed;
     }
@@ -512,16 +512,15 @@ void jetmanFlyThrust(State* cur) {
 
         case None:
             {
-                if(!(getGameTime() & 0x1)) {
-                    jetmanFlyHorizontal(cur);
-                } else {
+                if(getGameTime() & 0x1) {
                     sbyte speed = jetmanSpeedModifier - 8 + cur->xspeed;
                     if(speed < 0) {
                         speed = 0;
                     }
                     cur->xspeed = speed;
-                    jetmanFlyHorizontal(cur);
                 }
+                jetmanFlyHorizontal(cur);
+                break;
             }
         default:
             break; // to skip a warning, it's unreacheable code...
@@ -533,10 +532,12 @@ void sfxPickupItem() {
 }
 
 void scoreLabelFlash(Coords coords, bool on) {
-    Attrib a = getAttrib(coords.x / 8, coords.y / 8);
-    if(a.flash != on) {
-        a.flash = on;
-        setAttrib(coords.x / 8, coords.y / 8, a);
+    for(int i = 0; i < 3; ++i) {
+        Attrib a = getAttrib(coords.x / 8 + i, coords.y / 8);
+        if(a.flash != on) {
+            a.flash = on;
+            setAttrib(coords.x / 8 + i, coords.y / 8, a);
+        }
     }
 }
 
@@ -619,29 +620,24 @@ Moving checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
     return eRet;
 }
 
-byte laserBeamFire(State* state) {
-    byte cRet = 0;
+bool laserBeamFire(State* state) {
+    bool cRet = false;
     for(byte b = 0; b < array_sizeof(laserBeamParam);  ++b) {
         LaserBeam* beam = &laserBeamParam[b];
-        if(beam->used != LBUnused) {
-            byte a = beam->x[1];
-            if(a & 0x4){
-                sbyte diff = (a & 0xf8) - state->x;
-                byte c = (diff >= 0? 0x20 : 0x08);
-                diff = byteAbs(diff); 
-                if(diff < c) {
-                    diff = state->y - beam->y;
-                    if(diff >= 0) {
-                        diff += 0xc;
-                        if(diff < state->height) {
-                            cRet = 1;
-                            beam->x[0] &= 0xf8;
-                            break;
-                        }
-                    }
+        if(beam->used != LBUnused && (beam->x[1] & 0x4)) {
+            sbyte diff = (beam->x[1] & 0xf8) - state->x;
+            byte c = (diff >= 0? 0x20 : 0x08);
+            diff = byteAbs(diff); 
+            if(diff < c) {
+                diff = state->y - beam->y;
+                if(diff >= 0 &&
+                  (diff - state->height < 0xc)) {
+                    cRet = true;
+                    // inactivate beaam
+                    beam->x[0] &= 0xf8;
+                    break;
                 }
             }
-
         }
     }
     return cRet;
@@ -1582,7 +1578,7 @@ void squidgyAlienUpdate(State* cur){
                 cur->moving.ud = 1;
             }
             else {
-                cur->moving.ud = e.ud;
+                cur->moving.rl = e.rl;
                 // fallthrough
             }
         }

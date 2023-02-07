@@ -7,7 +7,8 @@ typedef uint8_t byte;
 typedef int8_t sbyte;
 typedef uint16_t word;
 #define array_sizeof(n) (sizeof(n)/sizeof(n[0]))
-
+#define LOBYTE(n) ((byte)(n & 0xff))
+#define HIBYTE(n) ((byte)((n & 0xff00) >> 8))
 
 // utils
 static inline sbyte byteAbs(sbyte b) {
