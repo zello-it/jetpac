@@ -63,7 +63,7 @@ byte flipped[256];
 void newActor(void);
 void resetScreen(void);
 void jetmanRedraw(State* cur);
-byte checkPlatformCollision(State* cur);
+Moving checkPlatformCollision(State* cur);
 void actorSaveSpritePos(State* state);
 
 void resetGlobals(void) {
@@ -382,22 +382,21 @@ void jetmanLands(State* cur) {
 }
 
 void jetmanCollision(State* cur) {
-    byte eRes = checkPlatformCollision(cur);
-    if(!(eRes & 0x4)){
+    Moving eRes = checkPlatformCollision(cur);
+    if(!eRes.hit){
         jetmanRedraw(cur);
         return;
     }
-    if(eRes & 0x80) {
+    if(eRes.ud) {
         jetmanLands(cur);
         return;
     }
-    if(eRes & 0x10) {
+    if(eRes.rebound) {
         cur->moving.ud = 1;
         jetmanRedraw(cur);
         return;
     }
-    eRes = (eRes ^ 0x40) & 0x40;
-    cur->umoving = (cur->umoving & 0xbf | eRes);
+    cur->moving.rl = !eRes.rl;
     jetmanRedraw(cur);
 }
 
@@ -579,10 +578,10 @@ bool collisionWithJetman(State* state) {
     return ret;
 }
 
-byte checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
-    byte eRet = 0;
+Moving checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
+    Moving eRet = {0};
     for(byte b = 0; b < 4; ++b) {
-        eRet = 0;
+        eRet = (Moving) {0};
         GFXParams* platform = &gfxParamsPlatforms[b];
         sbyte diff = platform->x - state->x;
         if(diff >= 0) {
@@ -594,26 +593,26 @@ byte checkPlatformCollision(State* state) { //jetmanPlatformCollision => ok!
         }
         else {
             diff = byteAbs(diff);
-            eRet |= 0x40;           // platform is on the right
+            eRet.rl = 1;           // platform is on the right
         }
         if((byte)diff >= platform->width) {   // we don't hit (platform->x is coord right?)
             continue;
         }
         diff += 0x12;
         if((byte)diff >= platform->width) {
-            eRet |= 8;
+            eRet.unk = 1;
         }
         diff = state->y - platform->y + 2;
         if(diff < 0) // no hit
             continue;
         if(diff < 2) {// hit from above, Y_2
-            eRet |= 0x84;
+            eRet.ud = eRet.hit = 1;
             break;
         } else if(diff < state->height) { // hit from below
-            eRet |= 0x4;
+            eRet.hit = 1;
             break;
         } else if((diff - 2) < state->height) {
-            eRet |= 0x14;
+            eRet.hit = eRet.rebound = 1;
             break;
         }
     }
@@ -921,12 +920,12 @@ void jetmanWalk(State* cur){
             break;
     }
     res = readInputThrust();
-    byte eRes = checkPlatformCollision(cur);
-    if(res == Thrust || !(eRes & 0x4)) {
+    Moving eRes = checkPlatformCollision(cur);
+    if(res == Thrust || !(eRes.hit)) {
         jetmanWalkOffPlatform(cur);
         return;
     }
-    if((eRes & 0x8) == 0 || cur->xspeed != 0) {
+    if((eRes.unk) == 0 || cur->xspeed != 0) {
         jetmanRedraw(cur);
         return;
     }
@@ -950,7 +949,7 @@ void meteorUpdate(State* cur){
     cur->y += cur->yspeed; 
     updateAndEraseActor(cur);
     colorizeSprite(cur);
-    if(checkPlatformCollision(cur) & 0x4) {
+    if(checkPlatformCollision(cur).hit) {
         // MeteorUpdate2
         animationStateReset(cur);
         sfxSetExplodeParam(cur, 0);
@@ -1046,7 +1045,7 @@ void collisionDetection(State* cur){
         if(collisionWithJetman(cur) == true){
             collectRocketItem(cur);
         }
-        if((checkPlatformCollision(cur) & 0x4) == 0)
+        if((checkPlatformCollision(cur).hit) == 0)
             cur->y += 2;
         redrawSprite(cur);
     }
@@ -1072,15 +1071,15 @@ void crossedShipUpdate(State* cur){
     }
     bool changeDir = false;
     while(true) {
-        byte ret = checkPlatformCollision(cur);
-        if(ret & 0x4) {
-            if(ret & 0x80) {
+        Moving ret = checkPlatformCollision(cur);
+        if(ret.hit) {
+            if(ret.ud) {
                 cur->moving.ud = 0;
                 cur->yspeed = byteRand() + 0x08;
-            } else if(ret & 0x10) {
+            } else if(ret.rebound) {
                 cur->moving.ud = 1;
             } else {
-                cur->umoving = (cur->umoving & 0xbf) | ((ret & 0x40) ^ 0x40);
+                cur->moving.rl = !(ret.rl);
             }
         }
         cur->x += (cur->moving.rl ? -2 : +2);
@@ -1128,18 +1127,18 @@ void sphereAlienUpdate(State* cur){
     }
     while(true){
         // sau 0
-        byte ret = checkPlatformCollision(cur);
-        if(ret & 0x4) {  // bit 2 on
-            if(ret & 0x80) { // bit 7 on
+        Moving ret = checkPlatformCollision(cur);
+        if(ret.hit) {  // bit 2 on
+            if(ret.ud) { // bit 7 on
                 //sau_6
                 cur->moving.ud = 0;
             }
-            else if(ret & 0x10) { // bit 4 on 
+            else if(ret.rebound) { // bit 4 on 
                 //sau_7
                 cur->moving.ud = 1;
             }
             else {
-                cur->umoving = (ret & 0x40) | (cur->umoving & 0xbf);
+                cur->moving.rl = ret.rl;
             }
         }
         // sau_1
@@ -1226,7 +1225,7 @@ void jetFighterUpdate(State* cur){
     updateAndEraseActor(cur);
     colorizeSprite(cur);
     if(cur->y < 0x28 || 
-        checkPlatformCollision(cur) & 0x4 ||
+        checkPlatformCollision(cur).hit ||
         laserBeamFire(cur) == 1
     ) {
         destroyFighter(cur);
@@ -1357,10 +1356,10 @@ void sfxEnemyDeath(State* cur){}
 void sfxJetmanDeath(State* cur){}
 void itemCheckCollect(State* cur){
     actorSaveSpritePos(cur);
-    byte ret = checkPlatformCollision(cur);
-    if(!(ret & 4))
+    Moving eret = checkPlatformCollision(cur);
+    if(!(eret.hit))
         cur->y += 2;
-    ret = collisionWithJetman(cur);
+    bool ret = collisionWithJetman(cur);
     if(!ret) {
         itemDropNew(cur);
     } else {
@@ -1412,14 +1411,14 @@ void ufoUpdate(State* cur){
     bool changeDir = false;
     // uu_0
     while(true) {
-        byte res = checkPlatformCollision(cur);
-        if(res & 0x04) {
-            if(res & 0x80) {
+        Moving res = checkPlatformCollision(cur);
+        if(res.hit) {
+            if(res.ud) {
                 cur->moving.ud = 0;
-            } else if(res & 0x10) {
+            } else if(res.rebound) {
                 cur->moving.ud = 1;
             }  else {
-            cur->umoving = (cur->umoving & 0xbf) | (~res & 0x40);
+            cur->moving.ud = !res.ud;
             }
         }
         // uu_1
@@ -1574,16 +1573,16 @@ void squidgyAlienUpdate(State* cur){
         alienCollisionAnimSfx(cur);
     bool changeDir = false;
     while(true) {
-        byte e = checkPlatformCollision(cur);
-        if(e & 0x4) {
-            if(e & 0x80) {
+        Moving e = checkPlatformCollision(cur);
+        if(e.hit) {
+            if(e.ud) {
                 cur->moving.ud = 0;
             }
-            else if(e & 0x10) {
+            else if(e.rebound) {
                 cur->moving.ud = 1;
             }
             else {
-                cur->umoving = (cur->umoving & 0xbf) | (e & 0x40);
+                cur->moving.ud = e.ud;
                 // fallthrough
             }
         }

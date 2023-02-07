@@ -71,7 +71,10 @@ typedef struct{
 typedef struct{
     byte hv:1; // 1 is vertical
     byte jet_moving:1;
-    byte unused:4;
+    byte hit:1;
+    byte unk:1;
+    byte rebound:1;
+    byte unused:1;
     byte rl:1; // 1 is left
     byte ud:1;  // 1 is down
 }Moving;
