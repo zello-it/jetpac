@@ -850,7 +850,7 @@ void laserBeamInit(LaserBeam* laserBeam) {
     laserBeam->used = LBUsed;
     byte dir = jetmanState.spriteIndex;
     byte x = (jetmanState.x & 0xf8) | 0x5;
-    if((dir & 0x40) == 0) {
+    if((dir & LEFT_MASK) == 0) {
         x = laserBeamShootRight(laserBeam, x);
     } else {
         x -= 8;
@@ -898,7 +898,7 @@ void jetmanWalk(State* cur){
         case Right:
             {
                 ++cur->x;
-                cur->spriteIndex &= ~0x40;
+                cur->spriteIndex &= ~LEFT_MASK;
                 cur->moving.rl = 0;
                 cur->xspeed = 0x20;
             }
@@ -906,7 +906,7 @@ void jetmanWalk(State* cur){
         case Left:
             {
                 --cur->x;
-                cur->spriteIndex |= 0x40;
+                cur->spriteIndex |= LEFT_MASK;
                 cur->moving.rl = 1;
                 cur->xspeed = 0x20;
             }
@@ -925,7 +925,7 @@ void jetmanWalk(State* cur){
         jetmanRedraw(cur);
         return;
     }
-    if(cur->spriteIndex & 0x40) {
+    if(cur->spriteIndex & LEFT_MASK) {
         --cur->x;
     } else {
         ++cur->x;
@@ -950,7 +950,7 @@ void meteorUpdate(State* cur){
         animationStateReset(cur);
         sfxSetExplodeParam(cur, 0);
     } else {
-        if(laserBeamFire(cur) != 0){
+        if(laserBeamFire(cur) == true){
             // increase score and display: MeteorUpdate1
             addPointsToScore(25);
             animationStateReset(cur);
@@ -1057,11 +1057,11 @@ void crossedShipUpdate(State* cur){
     actorSaveSpritePos(cur);
     actor.spriteIndex = (cur->spriteIndex & 0x3c) | 0x03;
     ++currentAlienNumber;
-    if(laserBeamFire(cur) == 1) {
+    if(laserBeamFire(cur) == true) {
         alienKillAnimSfx2(cur, 60);
         return;
     }
-    if(collisionWithJetman(cur) == 1) {
+    if(collisionWithJetman(cur) == true) {
         alienCollisionAnimSfx(cur);
         return;
     }
@@ -1086,8 +1086,8 @@ void crossedShipUpdate(State* cur){
         } else {
             speed += offs;
         }
-        cur->xspeed = speed & 0xff;
-        cur->y = (speed & 0xff00) >> 8;
+        cur->xspeed = LOBYTE(speed);
+        cur->y = HIBYTE(speed);
         if(cur->y > 0x28) {
             cur->moving.ud = 1;
         }
@@ -1113,11 +1113,11 @@ void sphereAlienUpdate(State* cur){
     actorSaveSpritePos(cur);
     actor.spriteIndex = (cur->spriteIndex & 0xc0) | 0x03;
     bool changeDir = false;
-    if(laserBeamFire(cur) == 1) {
+    if(laserBeamFire(cur) == true) {
         alienKillAnimSfx2(cur, 40);
         return;
     }
-    if(collisionWithJetman(cur) == 1) {
+    if(collisionWithJetman(cur) == true) {
         alienCollisionAnimSfx(cur);
         return;
     }
@@ -1144,7 +1144,7 @@ void sphereAlienUpdate(State* cur){
                 cur->moving.hv = 1;
                 byte a = (getGameTime() & 0x1f) + 0x10;
                 cur->yspeed = a;
-                cur->umoving = (cur->umoving & 0x7f) | (r & 0x80);
+                cur->moving.ud = ((r & 0x80) != 0);
                 continue;
             } 
         }
@@ -1195,7 +1195,7 @@ void jetFighterUpdate(State* cur){
             destroyFighter(cur);
             return;
         }
-        x = (cur->spriteIndex & 0x40 ? -4 : 4);
+        x = (cur->direction.left ? -4 : 4);
         if(jetmanState.y >= cur->y) 
             y = 0x2;
         else 
@@ -1222,7 +1222,7 @@ void jetFighterUpdate(State* cur){
     colorizeSprite(cur);
     if(cur->y < 0x28 || 
         checkPlatformCollision(cur).hit ||
-        laserBeamFire(cur) == 1
+        laserBeamFire(cur) == true
     ) {
         destroyFighter(cur);
         return;
@@ -1353,7 +1353,7 @@ void sfxJetmanDeath(State* cur){}
 void itemCheckCollect(State* cur){
     actorSaveSpritePos(cur);
     Moving eret = checkPlatformCollision(cur);
-    if(!(eret.hit))
+    if(!(eret.hit)) // let it fall
         cur->y += 2;
     bool ret = collisionWithJetman(cur);
     if(!ret) {
@@ -1367,7 +1367,7 @@ void itemCheckCollect(State* cur){
             .width = sprite->width,
             .spritedata = sprite->data
         };
-        maskSprite(&old, NULL);
+        maskSprite(&old, NULL); // cancel sprite
         cur->spriteIndex = 0;
         addPointsToScore(250);
         sfxPickupItem();
@@ -1389,7 +1389,6 @@ word ufoSub(byte coord, byte hi, byte low) { //uu2
     return w;
 }
 
-// last missing update function...
 void ufoUpdate(State* cur){
     ++currentAlienNumber;
     actorSaveSpritePos(cur);
@@ -1454,7 +1453,7 @@ void ufoUpdate(State* cur){
             }
         }
         //uu_3
-        cur->x = (offs >> 8);
+        cur->x = HIBYTE(offs);
         cur->xspeed = (offs & 0xf0) | lownibble;
         lownibble = cur->yspeed & 0xf;
         hinibble = cur->yspeed & 0xf0;
@@ -1486,7 +1485,7 @@ void ufoUpdate(State* cur){
             }
         }
         // uu5
-        byte hiw = (offs >> 8);
+        byte hiw = HIBYTE(offs);
         if(hiw < 0x28)
             cur->moving.ud = 1;
         cur->y = hiw;
@@ -1500,12 +1499,12 @@ void ufoUpdate(State* cur){
 }
 void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
     LaserBeam* laser = (LaserBeam*) cur;
-    if(laser->x[0] & 0x4) {
-        sbyte a = ((laser->x[0] & 0x1) ? -8 : 8) + laser->x[0];
+    if(laser->x[0] & LBActive) {
+        sbyte a = ((laser->x[0] & LBLeft) ? -8 : 8) + laser->x[0];
         Coords c = {.x = laser->x[0], .y = laser->y};
         if(c.y < 0x80 && getVideoByte(c) != 0) {
             // LaserBeamAnimate_5
-            laser->x[0] &= ~0x4;
+            laser->x[0] &= ~LBActive;
         } else {
             // LaserBeamAnimate_1
             laser->x[0] = a;
@@ -1513,7 +1512,7 @@ void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
             setAttrib(c.x >> 3, c.y >> 3, (Attrib){.attrib = laser->color});
             laser->length -= 0x08;
             if((laser->length & 0xf8) == 0) {
-                laser->x[0] &= ~0x4;
+                laser->x[0] &= ~LBActive;
             }
         }
     } // else LaserBeamAnimate_3
@@ -1526,9 +1525,9 @@ void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
         if(a) {
             //LaserBeamAnimate_6
             a = *pulse;
-            if(a & 4) {
+            if(a & LBActive) {
                 // LaserBeamAnimate_7
-                sbyte offs = (a & 1 ? -8 : 8);
+                sbyte offs = (a & LBLeft ? -8 : 8);
                 *pulse += offs;
                 Coords old = {.x = a, .y = laser->y};
                 a = b_1;
@@ -1540,7 +1539,7 @@ void laserBeamAnimate(State* cur){  // bit 0 is dir bit 2 is used or not
                     break; // fast ret
                 a = (byteRand() & 0x3) | 0x4;
                 laser->length |= a;
-                *pulse |= 4;
+                *pulse |= LBActive;
                 break; // fast ret
             }
         } else {
@@ -1663,7 +1662,7 @@ void newActor(void){
                 if(alienState[b].type == RMUnused) {
                     alienState[b] = defaultAlienState;
                     r = (byteRand() & 1 ? 0x40 : 0); 
-                    alienState[b].umoving = r; //moving
+                    alienState[b].moving.rl = (r != 0); //moving
                     alienState[b].spriteIndex = r; //direction
                     r = (byteRand() & 0x7f) + 0x28;
                     alienState[b].y = r;

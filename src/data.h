@@ -8,7 +8,7 @@ typedef int8_t sbyte;
 typedef uint16_t word;
 #define array_sizeof(n) (sizeof(n)/sizeof(n[0]))
 #define LOBYTE(n) ((byte)(n & 0xff))
-#define HIBYTE(n) ((byte)((n & 0xff00) >> 8))
+#define HIBYTE(n) ((byte)(n >> 8))
 
 // utils
 static inline sbyte byteAbs(sbyte b) {
@@ -80,6 +80,7 @@ typedef struct{
     byte ud:1;  // 1 is down
 }Moving;
 
+#define LEFT_MASK (0x40)
 #define MAXSPEED_WALKING 0x20
 #define MAXSPEED_FLYING  0x40
 #define MAXSPEED_VERTICAL 0x3f
@@ -94,8 +95,6 @@ enum RMState {
     Free = 1,
     Carrying = 2,
     Drop = 4,
- //   FreeFall = 5,
- //   Dropped = 7
 };
 
 enum Animating {
@@ -119,7 +118,6 @@ typedef struct {
         Moving moving;
         enum RMState state;
         byte frame;
-        byte umoving;
     };
     union {
         byte xspeed;
@@ -138,6 +136,11 @@ extern State jetmanState;
 enum LaserBeamUsed {
     LBUnused = 0,
     LBUsed = 0x10
+};
+
+enum LaserBeamState {
+    LBLeft = 0x01,
+    LBActive = 0x04  // if turned off, laser beam stops here
 };
 
 typedef struct {
